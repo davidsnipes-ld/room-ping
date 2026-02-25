@@ -10,6 +10,7 @@ import time
 import platform
 import shutil
 import json
+import uuid
 from datetime import datetime
 
 # --- AUTO-INSTALLER ---
@@ -24,17 +25,14 @@ except ImportError:
 CONFIG_FILE = "settings.json"
 
 def get_router_ip():
-    """Finds the IP address of the router (Default Gateway)."""
     current_os = platform.system()
     try:
         if current_os == "Windows":
             process = subprocess.check_output(['route', 'print', '0.0.0.0'])
-            # Finds the gateway IP in the route table
             match = re.search(r'0\.0\.0\.0\s+0\.0\.0\.0\s+(\d+\.\d+\.\d+\.\d+)', process.decode())
             return match.group(1) if match else None
-        else: # Mac and Linux
+        else:
             process = subprocess.check_output(['netstat', '-rn'])
-            # Finds the 'default' route gateway
             match = re.search(r'default\s+([\d\.]+)', process.decode())
             return match.group(1) if match else None
     except:
@@ -51,12 +49,10 @@ def load_settings():
             "<ctrl>+<alt>+4": ["66:77:88:99:AA:BB", "Aaron"]
         }
     }
-    
     if not os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, 'w') as f:
             json.dump(default_config, f, indent=4)
         return default_config
-        
     with open(CONFIG_FILE, 'r') as f:
         return json.load(f)
 
@@ -65,18 +61,30 @@ PORT = 5005
 msg_queue = queue.Queue()
 
 # --- NETWORK LOGIC ---
-def get_ip_from_mac(target_mac):
+def get_ip_from_mac(target_mac, target_name):
     current_os = platform.system()
+    
+    # 1. FOOLPROOF SELF-TEST
+    try:
+        my_mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0, 8*6, 8)][::-1])
+        if target_mac.lower().replace('-', ':') == my_mac.lower():
+            return "127.0.0.1"
+        if target_name.lower() in socket.gethostname().lower():
+            return "127.0.0.1"
+    except:
+        pass
+
+    # 2. NETWORK DISCOVERY
     try:
         ping_bin = shutil.which("ping") or ("ping" if current_os == "Windows" else "/sbin/ping")
         arp_bin = shutil.which("arp") or ("arp" if current_os == "Windows" else "/usr/sbin/arp")
         
-        # Determine broadcast based on router IP (assumes /24 network)
         router_ip = get_router_ip()
         if not router_ip: return None
+            
         broadcast = ".".join(router_ip.split('.')[:-1]) + ".255"
-        
         flag = "-n" if current_os == "Windows" else "-c"
+        
         subprocess.Popen([ping_bin, flag, "1", broadcast], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(0.7)
 
@@ -93,25 +101,26 @@ def get_ip_from_mac(target_mac):
         print(f"Discovery Error: {e}")
     return None
 
-# --- UI & LISTENING ---
 def show_alert(ip):
     alert = tk.Toplevel()
     alert.title("PING!")
     alert.attributes("-topmost", True)
     alert.geometry("400x200")
     
-    # Try to find name for the incoming IP
     name = "Someone"
-    try:
-        arp_bin = shutil.which("arp") or ("arp" if platform.system() == "Windows" else "/usr/sbin/arp")
-        cmd = [arp_bin, "-a"] if platform.system() == "Windows" else [arp_bin, "-an"]
-        output = subprocess.check_output(cmd).decode(errors='ignore')
-        for line in output.split('\n'):
-            if ip in line:
-                for key, info in SETTINGS["hotkeys"].items():
-                    if info[0].lower().replace('-', ':') in line.lower().replace('-', ':'):
-                        name = info[1]
-    except: pass
+    if ip == "127.0.0.1":
+        name = "Self-Test"
+    else:
+        try:
+            arp_bin = shutil.which("arp") or ("arp" if platform.system() == "Windows" else "/usr/sbin/arp")
+            cmd = [arp_bin, "-a"] if platform.system() == "Windows" else [arp_bin, "-an"]
+            output = subprocess.check_output(cmd).decode(errors='ignore')
+            for line in output.split('\n'):
+                if ip in line:
+                    for key, info in SETTINGS["hotkeys"].items():
+                        if info[0].lower().replace('-', ':') in line.lower().replace('-', ':'):
+                            name = info[1]
+        except: pass
 
     tk.Label(alert, text=f"PING FROM: {name}", font=("Arial", 16, "bold"), fg="red").pack(expand=True)
     tk.Button(alert, text="DISMISS", command=alert.destroy, width=15, height=2).pack(pady=20)
@@ -135,24 +144,16 @@ def check_queue(root):
 
 def send_ping(target_mac, name):
     print(f"Searching for {name}...")
-    target_ip = get_ip_from_mac(target_mac)
+    target_ip = get_ip_from_mac(target_mac, name)
     if target_ip:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.sendto(b"PING", (target_ip, PORT))
             print(f"Sent to {name} ({target_ip})")
     else:
-        print(f"FAILURE: {name} not found. Check WiFi!")
+        print(f"FAILURE: {name} not found.")
 
 if __name__ == "__main__":
     current_router = get_router_ip()
-    
-    # Check if we are on the 'saved' network
-    if SETTINGS["locked_router_ip"] and current_router != SETTINGS["locked_router_ip"]:
-        root = tk.Tk()
-        root.withdraw()
-        from tkinter import messagebox
-        messagebox.showwarning("Wrong Network", f"Warning: You are not on your saved room network!\n\nCurrent Router: {current_router}\nSaved Router: {SETTINGS['locked_router_ip']}")
-    
     threading.Thread(target=listen_for_pings, daemon=True).start()
     
     root = tk.Tk()
@@ -165,5 +166,5 @@ if __name__ == "__main__":
     threading.Thread(target=listener.start, daemon=True).start()
     
     root.after(100, lambda: check_queue(root))
-    print(f"Room Attention Software: ACTIVE | Router IP: {current_router}")
+    print(f"Room Ping ACTIVE | Your Hostname: {socket.gethostname()}")
     root.mainloop()
