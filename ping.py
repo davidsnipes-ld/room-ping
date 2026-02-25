@@ -12,9 +12,9 @@ from datetime import datetime
 # --- CONFIGURATION ---
 HOTKEYS_MAP = {
     '<ctrl>+<alt>+1': ('68:ca:c4:97:1c:2d', 'David'),
-    '<ctrl>+<alt>+2': ('Z9:Y8:X7:W6:V5:U4', 'Levi'),
-    '<ctrl>+<alt>+3': ('00:11:22:33:44:55', 'Dan'),
-    '<ctrl>+<alt>+4': ('66:77:88:99:AA:BB', 'Aaron'),
+    '<ctrl>+<alt>+2': ('0c:e4:41:ea:b7:0a', 'Levi'),
+    '<ctrl>+<alt>+3': ('ac:45:ef:37:79:c7', 'Dan'),
+    '<ctrl>+<alt>+4': ('38.87.d5.04.09.d4', 'Aaron'),
 }
 PORT = 5005
 LOG_FILE = "ping_log.txt"
