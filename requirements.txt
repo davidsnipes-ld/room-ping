@@ -1,5 +1,1 @@
-<<<<<<< HEAD
-pynput 
-=======
-pynput 
->>>>>>> 51c798c (Fixed requirements)
+pynput
