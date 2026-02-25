@@ -9,4 +9,5 @@ Background attention-grabber for the squad.
    
 Run in terminal
 bash
-python3 ping.py
+```zsh
+   python3 ping.py
