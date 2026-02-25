@@ -64,33 +64,39 @@ msg_queue = queue.Queue()
 def get_ip_from_mac(target_mac, target_name):
     current_os = platform.system()
     
-    # 1. (Keep your Self-Test logic here)
-    
-    # 2. MULTI-CARD DISCOVERY
+    # 1. FOOLPROOF SELF-TEST (Identity Check)
+    try:
+        # Check by modern UUID MAC discovery
+        my_mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0, 8*6, 8)][::-1])
+        if target_mac.lower().replace('-', ':') == my_mac.lower():
+            return "127.0.0.1"
+            
+        # Check by Hostname (checks if "David" is in the computer name)
+        if target_name.lower() in socket.gethostname().lower():
+            return "127.0.0.1"
+    except:
+        pass
+
+    # 2. MULTI-CARD NETWORK DISCOVERY
     try:
         ping_bin = shutil.which("ping") or ("ping" if current_os == "Windows" else "/sbin/ping")
         arp_bin = shutil.which("arp") or ("arp" if current_os == "Windows" else "/usr/sbin/arp")
 
-        # Get all local IP addresses for this machine
-        # This effectively finds every "Network Card" that has an IP
+        # Get all local IP addresses for this machine (finds all cards)
         local_ips = socket.gethostbyname_ex(socket.gethostname())[2]
         
         for local_ip in local_ips:
-            if local_ip.startswith("127."): continue # Skip internal loopback
+            if local_ip.startswith("127."): continue
             
-            # Construct the broadcast address for THIS specific card
-            # E.g., if card is 192.168.50.15, broadcast is 192.168.50.255
+            # Construct broadcast for each card
             broadcast = ".".join(local_ip.split('.')[:-1]) + ".255"
-            
             flag = "-n" if current_os == "Windows" else "-c"
-            # Shout out of this specific card
             subprocess.Popen([ping_bin, flag, "1", broadcast], 
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # Wait for the network to ripple back
         time.sleep(0.8)
 
-        # Check the ARP table once for all results
+        # Check ARP table
         cmd = [arp_bin, "-a"] if current_os == "Windows" else [arp_bin, "-an"]
         output = subprocess.check_output(cmd).decode(errors='ignore')
         
@@ -102,7 +108,7 @@ def get_ip_from_mac(target_mac, target_name):
                 if ip_match: return ip_match.group(1)
                 
     except Exception as e:
-        print(f"Multi-card Discovery Error: {e}")
+        print(f"Discovery Error: {e}")
     return None
 
 def show_alert(ip):
