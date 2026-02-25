@@ -1,65 +1,89 @@
+import sys
+import subprocess
+import os
 import socket
 import threading
 import tkinter as tk
-from pynput import keyboard
 import queue
-import os
-import subprocess
 import re
 import time
 import platform
 import shutil
+import json
 from datetime import datetime
 
-# --- CONFIGURATION ---
-HOTKEYS_MAP = {
-    '<ctrl>+<alt>+1': ('68:ca:c4:97:1c:2d', 'David'),
-    '<ctrl>+<alt>+2': ('Z9:Y8:X7:W6:V5:U4', 'Levi'),
-    '<ctrl>+<alt>+3': ('00:11:22:33:44:55', 'Dan'),
-    '<ctrl>+<alt>+4': ('66:77:88:99:AA:BB', 'Aaron'),
-}
+# --- AUTO-INSTALLER ---
+try:
+    from pynput import keyboard
+except ImportError:
+    print("Installing missing libraries... please wait.")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "pynput"])
+    from pynput import keyboard
+
+# --- SETTINGS LOADER ---
+CONFIG_FILE = "settings.json"
+
+def get_router_ip():
+    """Finds the IP address of the router (Default Gateway)."""
+    current_os = platform.system()
+    try:
+        if current_os == "Windows":
+            process = subprocess.check_output(['route', 'print', '0.0.0.0'])
+            # Finds the gateway IP in the route table
+            match = re.search(r'0\.0\.0\.0\s+0\.0\.0\.0\s+(\d+\.\d+\.\d+\.\d+)', process.decode())
+            return match.group(1) if match else None
+        else: # Mac and Linux
+            process = subprocess.check_output(['netstat', '-rn'])
+            # Finds the 'default' route gateway
+            match = re.search(r'default\s+([\d\.]+)', process.decode())
+            return match.group(1) if match else None
+    except:
+        return None
+
+def load_settings():
+    router_id = get_router_ip()
+    default_config = {
+        "locked_router_ip": router_id,
+        "hotkeys": {
+            "<ctrl>+<alt>+1": ["68:ca:c4:97:1c:2d", "David"],
+            "<ctrl>+<alt>+2": ["Z9:Y8:X7:W6:V5:U4", "Levi"],
+            "<ctrl>+<alt>+3": ["00:11:22:33:44:55", "Dan"],
+            "<ctrl>+<alt>+4": ["66:77:88:99:AA:BB", "Aaron"]
+        }
+    }
+    
+    if not os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(default_config, f, indent=4)
+        return default_config
+        
+    with open(CONFIG_FILE, 'r') as f:
+        return json.load(f)
+
+SETTINGS = load_settings()
 PORT = 5005
-LOG_FILE = "ping_log.txt"
 msg_queue = queue.Queue()
-# ---------------------
 
-def log_ping(name):
-    """Appends the ping event to a local text file."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(LOG_FILE, "a") as f:
-        f.write(f"[{timestamp}] {name} requested attention.\n")
-
+# --- NETWORK LOGIC ---
 def get_ip_from_mac(target_mac):
     current_os = platform.system()
-    
-    # 1. Self-Test Check (Mac Only)
     try:
-        if current_os == "Darwin": 
-            my_mac_raw = subprocess.check_output(["networksetup", "-getmacaddress", "en0"]).decode()
-            if target_mac.lower() in my_mac_raw.lower(): return "127.0.0.1"
-    except: pass
-
-    # 2. Network Discovery
-    try:
-        ping_bin = shutil.which("ping")
-        arp_bin = shutil.which("arp")
+        ping_bin = shutil.which("ping") or ("ping" if current_os == "Windows" else "/sbin/ping")
+        arp_bin = shutil.which("arp") or ("arp" if current_os == "Windows" else "/usr/sbin/arp")
         
-        # Wake up network - broadcast address
-        broadcast = "192.168.0.255"
-        if current_os == "Windows":
-            subprocess.Popen([ping_bin, "-n", "1", broadcast], stdout=subprocess.DEVNULL)
-        else:
-            subprocess.Popen([ping_bin, "-c", "1", broadcast], stdout=subprocess.DEVNULL)
+        # Determine broadcast based on router IP (assumes /24 network)
+        router_ip = get_router_ip()
+        if not router_ip: return None
+        broadcast = ".".join(router_ip.split('.')[:-1]) + ".255"
         
+        flag = "-n" if current_os == "Windows" else "-c"
+        subprocess.Popen([ping_bin, flag, "1", broadcast], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(0.7)
 
-        # Get ARP table based on OS
         cmd = [arp_bin, "-a"] if current_os == "Windows" else [arp_bin, "-an"]
         output = subprocess.check_output(cmd).decode(errors='ignore')
         
-        # Clean MACs to handle Windows dashes (-) vs Unix colons (:)
         target_mac_clean = target_mac.lower().replace('-', ':')
-        
         for line in output.split('\n'):
             line_clean = line.lower().replace('-', ':')
             if target_mac_clean in line_clean:
@@ -69,8 +93,30 @@ def get_ip_from_mac(target_mac):
         print(f"Discovery Error: {e}")
     return None
 
+# --- UI & LISTENING ---
+def show_alert(ip):
+    alert = tk.Toplevel()
+    alert.title("PING!")
+    alert.attributes("-topmost", True)
+    alert.geometry("400x200")
+    
+    # Try to find name for the incoming IP
+    name = "Someone"
+    try:
+        arp_bin = shutil.which("arp") or ("arp" if platform.system() == "Windows" else "/usr/sbin/arp")
+        cmd = [arp_bin, "-a"] if platform.system() == "Windows" else [arp_bin, "-an"]
+        output = subprocess.check_output(cmd).decode(errors='ignore')
+        for line in output.split('\n'):
+            if ip in line:
+                for key, info in SETTINGS["hotkeys"].items():
+                    if info[0].lower().replace('-', ':') in line.lower().replace('-', ':'):
+                        name = info[1]
+    except: pass
+
+    tk.Label(alert, text=f"PING FROM: {name}", font=("Arial", 16, "bold"), fg="red").pack(expand=True)
+    tk.Button(alert, text="DISMISS", command=alert.destroy, width=15, height=2).pack(pady=20)
+
 def listen_for_pings():
-    """Background thread to catch incoming UDP packets."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(('', PORT))
         while True:
@@ -79,82 +125,45 @@ def listen_for_pings():
                 msg_queue.put(addr[0])
 
 def check_queue(root):
-    """Main thread checks for pings and shows the alert."""
     try:
         while True:
             sender_ip = msg_queue.get_nowait()
-            name = "Someone"
-            
-            if sender_ip == "127.0.0.1":
-                name = "Self-Test"
-            else:
-                try:
-                    arp_bin = shutil.which("arp")
-                    cmd = [arp_bin, "-a"] if platform.system() == "Windows" else [arp_bin, "-an"]
-                    output = subprocess.check_output(cmd).decode(errors='ignore')
-                    for line in output.split('\n'):
-                        if sender_ip in line:
-                            for combo, info in HOTKEYS_MAP.items():
-                                mac_clean = info[0].lower().replace('-', ':')
-                                if mac_clean in line.lower().replace('-', ':'):
-                                    name = info[1]
-                                    break
-                except: pass
-            
-            log_ping(name)
-            show_alert(name)
+            show_alert(sender_ip)
     except queue.Empty:
         pass
     root.after(100, lambda: check_queue(root))
 
-def show_alert(name):
-    """The centered popup window."""
-    alert = tk.Toplevel() 
-    alert.title("PING!")
-    alert.attributes("-topmost", True)
-    
-    width, height = 500, 260
-    x = (alert.winfo_screenwidth() // 2) - (width // 2)
-    y = (alert.winfo_screenheight() // 2) - (height // 2)
-    alert.geometry(f"{width}x{height}+{x}+{y}")
-    
-    frame = tk.Frame(alert, bg="white", highlightbackground="red", highlightthickness=8)
-    frame.pack(fill="both", expand=True)
-
-    tk.Label(frame, text="ATTENTION!", font=("Arial", 32, "bold"), fg="red", bg="white").pack(pady=(20, 0))
-    tk.Label(frame, text=f"{name} needs you.", font=("Arial", 20), fg="black", bg="white").pack(pady=10)
-    tk.Button(frame, text="I'M ON IT", command=alert.destroy, font=("Arial", 16, "bold"), width=12).pack(pady=15)
-
 def send_ping(target_mac, name):
-    print(f"DEBUG: Finding {name}...")
+    print(f"Searching for {name}...")
     target_ip = get_ip_from_mac(target_mac)
-    if not target_ip:
-        print(f"FAILURE: {name} not found on the network.")
-        return
-    try:
+    if target_ip:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.sendto(b"PING", (target_ip, PORT))
-            print(f"SUCCESS: Ping sent to {name} at {target_ip}")
-    except Exception as e:
-        print(f"Error: {e}")
+            print(f"Sent to {name} ({target_ip})")
+    else:
+        print(f"FAILURE: {name} not found. Check WiFi!")
 
 if __name__ == "__main__":
-    if not os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "w") as f:
-            f.write("--- Attention Software Log Started ---\n")
-
+    current_router = get_router_ip()
+    
+    # Check if we are on the 'saved' network
+    if SETTINGS["locked_router_ip"] and current_router != SETTINGS["locked_router_ip"]:
+        root = tk.Tk()
+        root.withdraw()
+        from tkinter import messagebox
+        messagebox.showwarning("Wrong Network", f"Warning: You are not on your saved room network!\n\nCurrent Router: {current_router}\nSaved Router: {SETTINGS['locked_router_ip']}")
+    
     threading.Thread(target=listen_for_pings, daemon=True).start()
     
     root = tk.Tk()
-    root.withdraw() 
-    
+    root.withdraw()
+
     def create_ping_func(mac, name): return lambda: send_ping(mac, name)
-    bindings = {key: create_ping_func(val[0], val[1]) for key, val in HOTKEYS_MAP.items()}
+    bindings = {k: create_ping_func(v[0], v[1]) for k, v in SETTINGS["hotkeys"].items()}
     
-    hotkey_listener = keyboard.GlobalHotKeys(bindings)
-    threading.Thread(target=hotkey_listener.start, daemon=True).start()
+    listener = keyboard.GlobalHotKeys(bindings)
+    threading.Thread(target=listener.start, daemon=True).start()
     
     root.after(100, lambda: check_queue(root))
-    
-    print(f"Room Attention Software: ACTIVE on {platform.system()}")
+    print(f"Room Attention Software: ACTIVE | Router IP: {current_router}")
     root.mainloop()
