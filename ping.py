@@ -9,7 +9,6 @@ import re
 import time
 import platform
 import shutil
-import pyttsx3 # Cross-platform text-to-speech
 from datetime import datetime
 
 # --- CONFIGURATION ---
@@ -22,34 +21,30 @@ HOTKEYS_MAP = {
 PORT = 5005
 LOG_FILE = "ping_log.txt"
 msg_queue = queue.Queue()
-engine = pyttsx3.init() # Initialize TTS engine
 # ---------------------
 
-def speak(text):
-    """Cross-platform text to speech."""
-    try:
-        engine.say(text)
-        engine.runAndWait()
-    except:
-        pass
+def log_ping(name):
+    """Appends the ping event to a local text file."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOG_FILE, "a") as f:
+        f.write(f"[{timestamp}] {name} requested attention.\n")
 
 def get_ip_from_mac(target_mac):
     current_os = platform.system()
     
-    # 1. Self-Test Check
+    # 1. Self-Test Check (Mac Only)
     try:
-        if current_os == "Darwin": # Mac
+        if current_os == "Darwin": 
             my_mac_raw = subprocess.check_output(["networksetup", "-getmacaddress", "en0"]).decode()
             if target_mac.lower() in my_mac_raw.lower(): return "127.0.0.1"
     except: pass
 
     # 2. Network Discovery
     try:
-        # Find path for ping and arp
         ping_bin = shutil.which("ping")
         arp_bin = shutil.which("arp")
         
-        # Wake up network
+        # Wake up network - broadcast address
         broadcast = "192.168.0.255"
         if current_os == "Windows":
             subprocess.Popen([ping_bin, "-n", "1", broadcast], stdout=subprocess.DEVNULL)
@@ -58,13 +53,16 @@ def get_ip_from_mac(target_mac):
         
         time.sleep(0.7)
 
-        # Get ARP table
+        # Get ARP table based on OS
         cmd = [arp_bin, "-a"] if current_os == "Windows" else [arp_bin, "-an"]
         output = subprocess.check_output(cmd).decode(errors='ignore')
         
+        # Clean MACs to handle Windows dashes (-) vs Unix colons (:)
+        target_mac_clean = target_mac.lower().replace('-', ':')
+        
         for line in output.split('\n'):
-            if target_mac.lower().replace('-', ':') in line.lower().replace('-', ':'):
-                # Regex to find IP address in the line
+            line_clean = line.lower().replace('-', ':')
+            if target_mac_clean in line_clean:
                 ip_match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
                 if ip_match: return ip_match.group(1)
     except Exception as e:
@@ -72,6 +70,7 @@ def get_ip_from_mac(target_mac):
     return None
 
 def listen_for_pings():
+    """Background thread to catch incoming UDP packets."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(('', PORT))
         while True:
@@ -80,6 +79,7 @@ def listen_for_pings():
                 msg_queue.put(addr[0])
 
 def check_queue(root):
+    """Main thread checks for pings and shows the alert."""
     try:
         while True:
             sender_ip = msg_queue.get_nowait()
@@ -95,18 +95,20 @@ def check_queue(root):
                     for line in output.split('\n'):
                         if sender_ip in line:
                             for combo, info in HOTKEYS_MAP.items():
-                                if info[0].lower().replace('-', ':') in line.lower().replace('-', ':'):
+                                mac_clean = info[0].lower().replace('-', ':')
+                                if mac_clean in line.lower().replace('-', ':'):
                                     name = info[1]
                                     break
                 except: pass
             
-            threading.Thread(target=speak, args=(f"{name} is calling you",), daemon=True).start()
+            log_ping(name)
             show_alert(name)
     except queue.Empty:
         pass
     root.after(100, lambda: check_queue(root))
 
 def show_alert(name):
+    """The centered popup window."""
     alert = tk.Toplevel() 
     alert.title("PING!")
     alert.attributes("-topmost", True)
@@ -127,7 +129,7 @@ def send_ping(target_mac, name):
     print(f"DEBUG: Finding {name}...")
     target_ip = get_ip_from_mac(target_mac)
     if not target_ip:
-        print(f"FAILURE: {name} not found.")
+        print(f"FAILURE: {name} not found on the network.")
         return
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -137,7 +139,12 @@ def send_ping(target_mac, name):
         print(f"Error: {e}")
 
 if __name__ == "__main__":
+    if not os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "w") as f:
+            f.write("--- Attention Software Log Started ---\n")
+
     threading.Thread(target=listen_for_pings, daemon=True).start()
+    
     root = tk.Tk()
     root.withdraw() 
     
@@ -146,6 +153,7 @@ if __name__ == "__main__":
     
     hotkey_listener = keyboard.GlobalHotKeys(bindings)
     threading.Thread(target=hotkey_listener.start, daemon=True).start()
+    
     root.after(100, lambda: check_queue(root))
     
     print(f"Room Attention Software: ACTIVE on {platform.system()}")
