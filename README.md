@@ -6,3 +6,7 @@ Background attention-grabber for the squad.
 2. **Install Library:** Open Terminal and run:
    ```zsh
    pip3 install -r requirements.txt
+   
+Run in terminal
+bash
+python3 ping.py
