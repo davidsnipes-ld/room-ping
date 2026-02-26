@@ -104,7 +104,12 @@ To build and publish new downloads so users don’t need Python:
 
 To test the build without publishing: in GitHub go to **Actions → Build release → Run workflow**. When it finishes, download the zips from that run’s **Artifacts**.
 
-To build on your own machine: from the project folder run `pip install pyinstaller && pyinstaller RoomPingPro.spec`. Output is in `dist/` (build on each OS for that OS).
+To build on your own machine:
+- **Windows:** Double‑click **build-windows.bat** or run it in Command Prompt. Output: **dist\\RoomPingPro.exe**
+- **Linux:** Run `chmod +x build-linux.sh && ./build-linux.sh`. Output: **dist/RoomPingPro**
+- **macOS:** Run `pip install pyinstaller -r requirements.txt && pyinstaller --noconfirm RoomPingPro.spec`. Output: **dist/RoomPingPro.app**
+
+You must build on each OS to get that OS’s executable (e.g. you get RoomPingPro.exe only when building on Windows).
 
 ---
 
