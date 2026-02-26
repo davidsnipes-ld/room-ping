@@ -8,10 +8,12 @@ function attachClickHandlers() {
         if (el) el.addEventListener('click', fn);
     };
     byId('btn-add-roommate', openModal);
+    byId('btn-refresh-status', () => loadFriends());
     byId('btn-settings', openSettings);
     byId('btn-modal-cancel', closeModal);
     byId('btn-modal-add', saveFriend);
     byId('btn-settings-close', closeSettings);
+    byId('btn-check-updates', checkForUpdates);
     byId('btn-test-ping', testMyPing);
     byId('btn-copy-mac', copyMyMac);
 }
@@ -103,7 +105,7 @@ async function loadFriends() {
         return;
     }
 
-    users.forEach(user => {
+    for (const user of users) {
         const card = document.createElement('div');
         card.className = 'card';
         card.addEventListener('click', (e) => {
@@ -111,22 +113,54 @@ async function loadFriends() {
             pingFriend(user.mac, user.name);
         });
         card.innerHTML = `
-    <div class="status online"></div>
+    <div class="status unknown" title="Checking..."></div>
     <div class="info">
         <h3>${user.name}</h3>
-        <p>${user.mac}</p>
+        <p class="card-mac">${user.mac}</p>
+        <p class="card-ip" style="display:none;"></p>
     </div>
     <div class="card-actions">
         <button class="ping-btn" type="button">PING</button>
         <button class="delete-btn" type="button">🗑️</button>
     </div>
 `;
+        const statusEl = card.querySelector('.status');
+        const ipEl = card.querySelector('.card-ip');
         card.querySelector('.delete-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             deleteFriend(e, user.mac);
         });
         friendsList.appendChild(card);
-    });
+
+        // Resolve reachability and IP in one scan; update status light and show IP under name
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.get_reachability_and_ip) {
+            try {
+                const result = await pywebview.api.get_reachability_and_ip(user.mac, user.name);
+                if (statusEl.parentNode) {
+                    statusEl.className = 'status ' + (result.reachable ? 'online' : 'offline');
+                    statusEl.title = result.reachable ? 'Online' : 'Offline / not reachable';
+                }
+                if (ipEl && ipEl.parentNode) {
+                    if (result.ip) {
+                        ipEl.textContent = 'IP: ' + result.ip;
+                        ipEl.style.display = '';
+                    } else {
+                        ipEl.style.display = 'none';
+                    }
+                }
+            } catch (err) {
+                if (statusEl.parentNode) {
+                    statusEl.className = 'status offline';
+                    statusEl.title = 'Check failed';
+                }
+                if (ipEl) ipEl.style.display = 'none';
+            }
+        } else {
+            statusEl.className = 'status offline';
+            statusEl.title = 'Unknown';
+            if (ipEl) ipEl.style.display = 'none';
+        }
+    }
 }
 
 // --- UI HELPERS ---
@@ -137,6 +171,32 @@ function closeSettings() { document.getElementById('settings-modal').style.displ
 
 function toggleAudio() {
     audioEnabled = document.getElementById('audio-toggle').checked;
+}
+
+async function checkForUpdates() {
+    const btn = document.getElementById('btn-check-updates');
+    if (btn) btn.disabled = true;
+    try {
+        if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.check_for_updates) {
+            showToast('Update check not available.', 'error');
+            return;
+        }
+        const result = await pywebview.api.check_for_updates();
+        if (result.error) {
+            showToast(result.error === 'Repo not configured' ? 'Set your GitHub repo in version.txt (line 2).' : result.error, 'error');
+            return;
+        }
+        if (result.update_available) {
+            showToast(`Update available: ${result.latest}. Opening download page...`, 'success');
+            if (result.url) pywebview.api.open_url(result.url);
+        } else {
+            showToast(`You're on the latest version (${result.current}).`, 'success');
+        }
+    } catch (err) {
+        showToast('Update check failed.', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 function copyMyMac() {

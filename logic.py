@@ -104,8 +104,27 @@ class NetworkEngine:
             print(f"MAC discovery error: {e}")
             return _mac_from_uuid()
 
+    def _read_arp_for_mac(self, target_clean, arp_bin):
+        """Run arp -a (or -an) and return IP if target MAC is in the table."""
+        if self._os == "Windows":
+            cmd = [arp_bin, "-a"]
+        else:
+            cmd = [arp_bin, "-an"]
+        output = subprocess.check_output(
+            cmd,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW if self._os == "Windows" and hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+        ).decode(errors="ignore")
+        for line in output.split("\n"):
+            if target_clean in line.lower().replace("-", ":"):
+                m = re.search(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b", line)
+                if m:
+                    return m.group(1)
+        return None
+
     def scan_network(self, target_mac, target_name):
-        """Resolve target_mac to an IP on the local LAN (broadcast + ARP)."""
+        """Resolve target_mac to an IP on the local LAN (broadcast + ARP, then fallback direct pings)."""
         if not target_mac:
             return None
         my_mac = self.get_my_mac().lower()
@@ -122,6 +141,10 @@ class NetworkEngine:
             except socket.gaierror:
                 return None
 
+            ping_count = "-n" if self._os == "Windows" else "-c"
+            creationflags = subprocess.CREATE_NO_WINDOW if self._os == "Windows" and hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+
+            # Pass 1: broadcast ping, then read ARP (fast but Windows often doesn't reply to broadcast)
             for ip in local_ips:
                 if ip.startswith("127."):
                     continue
@@ -129,32 +152,38 @@ class NetworkEngine:
                 if len(parts) != 4:
                     continue
                 broadcast = ".".join(parts[:-1]) + ".255"
-                ping_count = "-n" if self._os == "Windows" else "-c"
                 subprocess.Popen(
                     [ping_bin, ping_count, "1", broadcast],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NO_WINDOW if self._os == "Windows" and hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+                    creationflags=creationflags,
                 )
+            time.sleep(1.0)
+            found = self._read_arp_for_mac(target_clean, arp_bin)
+            if found:
+                return found
 
-            time.sleep(0.8)
-
-            if self._os == "Windows":
-                cmd = [arp_bin, "-a"]
-            else:
-                cmd = [arp_bin, "-an"]
-            output = subprocess.check_output(
-                cmd,
-                stderr=subprocess.DEVNULL,
-                timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if self._os == "Windows" and hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
-            ).decode(errors="ignore")
-
-            for line in output.split("\n"):
-                if target_clean in line.lower().replace("-", ":"):
-                    m = re.search(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b", line)
-                    if m:
-                        return m.group(1)
+            # Pass 2: ping each IP in subnet so ARP table fills (helps when target blocks broadcast, e.g. Windows)
+            subnet_prefix = None
+            for ip in local_ips:
+                if ip.startswith("127.") or len(ip.split(".")) != 4:
+                    continue
+                subnet_prefix = ".".join(ip.split(".")[:-1]) + "."
+                break
+            if not subnet_prefix:
+                return None
+            for i in range(1, 255):
+                candidate = subnet_prefix + str(i)
+                subprocess.Popen(
+                    [ping_bin, ping_count, "1", candidate],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=creationflags,
+                )
+            time.sleep(2.5)
+            found = self._read_arp_for_mac(target_clean, arp_bin)
+            if found:
+                return found
         except Exception as e:
             print(f"Scan error: {e}")
         return None

@@ -86,8 +86,7 @@ python main.py
 
 ## Firewall
 
-The app uses **UDP port 5005**. If pings don’t arrive, allow the app (or Python) through your firewall for that port.
-
+The app uses **UDP port 5005**. Both sender and receiver must allow it. If the other person is never found or never gets the ping (e.g. on Windows), they should allow RoomPingPro (or Python) in Windows Security → Firewall → Allow an app for Private networks, or allow inbound UDP port 5005. The first ping can take a few seconds. 
 ---
 
 ## Creating new releases (for repo maintainers)
@@ -105,11 +104,14 @@ To build and publish new downloads so users don’t need Python:
 To test the build without publishing: in GitHub go to **Actions → Build release → Run workflow**. When it finishes, download the zips from that run’s **Artifacts**.
 
 To build on your own machine:
-- **Windows:** Double‑click **build-windows.bat** or run it in Command Prompt. Output: **dist\\RoomPingPro.exe**
+- **Windows:** Double‑click **build-windows.bat** or run it in Command Prompt. Output: **dist\\RoomPingPro.exe**  
+  If you get "Access is denied" or "Could not install packages", the script uses a user install (no admin). If it still fails, close other programs using Python, or run Command Prompt as Administrator, or use a venv: `python -m venv venv` then `venv\\Scripts\\activate` then `pip install pyinstaller -r requirements.txt` and `python -m PyInstaller --noconfirm RoomPingPro.spec`.
 - **Linux:** Run `chmod +x build-linux.sh && ./build-linux.sh`. Output: **dist/RoomPingPro**
 - **macOS:** Run `pip install pyinstaller -r requirements.txt && pyinstaller --noconfirm RoomPingPro.spec`. Output: **dist/RoomPingPro.app**
 
 You must build on each OS to get that OS’s executable (e.g. you get RoomPingPro.exe only when building on Windows).
+
+**Updates:** Edit **version.txt**: line 1 = app version (e.g. 1.0.0), line 2 = your GitHub repo (e.g. yourusername/AlertNotification). In the app, **Settings → Check for updates** opens the latest release page so users can download the new build. Bump line 1 when you release a new tag.
 
 ---
 
@@ -122,6 +124,7 @@ You must build on each OS to get that OS’s executable (e.g. you get RoomPingPr
 | `logic.py`           | MAC detection and network ping (all platforms) |
 | `Web/`               | App UI (HTML/CSS/JS) |
 | `RoomPingPro.spec`   | PyInstaller spec for building the standalone app |
+| `version.txt`        | Line 1: app version; line 2: GitHub owner/repo for update check |
 | `settings.json`      | Your roommates list (created automatically; not committed) |
 
 ---

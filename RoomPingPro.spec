@@ -6,7 +6,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('Web', 'Web')],
+    datas=[('Web', 'Web'), ('version.txt', '.')],
     hiddenimports=['pywebview'],
     hookspath=[],
     hooksconfig={},

@@ -10,7 +10,10 @@
         <header>
             <div class="header-top">
                 <h1>RoomPing <span>Pro</span></h1>
-                <button class="icon-btn" type="button" id="btn-settings">⚙️</button>
+                <div style="display:flex; gap:4px;">
+                    <button class="icon-btn" type="button" id="btn-refresh-status" title="Refresh online status">🔄</button>
+                    <button class="icon-btn" type="button" id="btn-settings">⚙️</button>
+                </div>
             </div>
         
             <div id="my-profile" class="my-profile-card">
@@ -54,6 +57,9 @@
                 <div class="setting-item">
                     <label>Audio Alerts</label>
                     <input type="checkbox" id="audio-toggle" checked onchange="toggleAudio()">
+                </div>
+                <div class="setting-item">
+                    <button type="button" class="save-btn" id="btn-check-updates" style="width:100%;">Check for updates</button>
                 </div>
                 <button type="button" class="save-btn" id="btn-settings-close">Close</button>
             </div>
