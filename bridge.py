@@ -59,14 +59,35 @@ class Bridge:
                 return json.load(f)
         return {"users": []}
 
+    def _mac_norm(self, mac):
+        return (mac or "").lower().replace("-", ":")
+
+    def _find_user_by_mac(self, settings, mac):
+        mac_clean = self._mac_norm(mac)
+        for u in settings.get("users", []):
+            if self._mac_norm(u.get("mac")) == mac_clean:
+                return u
+        return None
+
     def add_user(self, user_data):
         settings = self.get_settings()
         if 'users' not in settings:
             settings['users'] = []
-        settings['users'].append(user_data)
+        settings['users'].append(dict(user_data))  # name, mac; ip filled when we resolve
         with open(self.settings_file, 'w') as f:
             json.dump(settings, f, indent=4)
         return {"status": "success"}
+
+    def update_user_ip(self, mac, ip):
+        """Store or update the last-known IP for this MAC. Called whenever we resolve MAC → IP."""
+        if not mac or not ip:
+            return
+        settings = self.get_settings()
+        user = self._find_user_by_mac(settings, mac)
+        if user is not None:
+            user["ip"] = ip
+            with open(self.settings_file, "w") as f:
+                json.dump(settings, f, indent=4)
 
     def check_reachable(self, mac, name):
         """Return True if this MAC can be resolved on the network (online), False otherwise."""
@@ -74,31 +95,56 @@ class Bridge:
         return result["reachable"]
 
     def get_reachability_and_ip(self, mac, name):
-        """Run one network scan; return reachable (bool) and ip (str or None). Used for status + IP display."""
+        """Run one network scan; return reachable (bool) and ip (str or None). Saves IP when found."""
         if not mac:
             return {"reachable": False, "ip": None}
         my_mac = self.engine.get_my_mac().lower()
-        mac_clean = mac.lower().replace("-", ":")
+        mac_clean = self._mac_norm(mac)
         if mac_clean == my_mac or (name and name.lower() in socket.gethostname().lower()):
+            self.update_user_ip(mac, "127.0.0.1")
             return {"reachable": True, "ip": "127.0.0.1"}
         ip = self.engine.scan_network(mac, name or "")
+        if ip:
+            self.update_user_ip(mac, ip)
         return {"reachable": ip is not None, "ip": ip}
 
+    def _send_ping(self, target_ip):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.sendto(b"PING", (target_ip, DEFAULT_PORT))
+
     def ping_user(self, mac, name):
-        """Send ping. Returns {success, your_ip?, subnets?, hint?} for UI feedback."""
+        """Send ping. Uses stored IP when available; otherwise resolves MAC → IP and saves it."""
         net = self.engine.get_my_network_info()
-        my_mac = self.engine.get_my_mac()
+        my_mac = self.engine.get_my_mac().lower()
         my_hostname = socket.gethostname().lower()
+        mac_clean = self._mac_norm(mac)
 
-        if mac.lower().replace("-", ":") == my_mac.lower() or (name and name.lower() in my_hostname):
-            target_ip = "127.0.0.1"
-        else:
-            target_ip = self.engine.scan_network(mac, name or "")
-
-        if target_ip:
+        if mac_clean == my_mac or (name and name.lower() in my_hostname):
+            self.update_user_ip(mac, "127.0.0.1")
             try:
-                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                    s.sendto(b"PING", (target_ip, DEFAULT_PORT))
+                self._send_ping("127.0.0.1")
+                return {"success": True}
+            except Exception as e:
+                return {"success": False, "your_ip": "", "subnets": [], "hint": str(e)}
+
+        settings = self.get_settings()
+        user = self._find_user_by_mac(settings, mac)
+        stored_ip = (user or {}).get("ip") if user else None
+
+        # 1) Try stored IP first (fast; works when DHCP hasn't changed)
+        if stored_ip:
+            try:
+                self._send_ping(stored_ip)
+                return {"success": True}
+            except Exception:
+                pass
+
+        # 2) Resolve MAC → IP (updates stored IP when found)
+        target_ip = self.engine.scan_network(mac, name or "")
+        if target_ip:
+            self.update_user_ip(mac, target_ip)
+            try:
+                self._send_ping(target_ip)
                 return {"success": True}
             except Exception as e:
                 return {
@@ -107,6 +153,7 @@ class Bridge:
                     "subnets": net.get("subnets", []),
                     "hint": str(e),
                 }
+
         return {
             "success": False,
             "your_ip": net.get("ips", [""])[0] if net.get("ips") else "",

@@ -135,12 +135,13 @@ async function loadFriends() {
             if (e.target.closest('.delete-btn')) return;
             pingFriend(user.mac, user.name);
         });
+        const storedIp = user.ip ? ('IP: ' + user.ip) : '';
         card.innerHTML = `
     <div class="status unknown" title="Checking..."></div>
     <div class="info">
         <h3>${user.name}</h3>
         <p class="card-mac">${user.mac}</p>
-        <p class="card-ip" style="display:none;"></p>
+        <p class="card-ip" style="${storedIp ? '' : 'display:none;'}">${storedIp}</p>
     </div>
     <div class="card-actions">
         <button class="ping-btn" type="button">PING</button>
