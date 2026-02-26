@@ -7,6 +7,10 @@
 </head>
 <body>
     <div class="app-container">
+        <div id="firewall-banner" class="firewall-banner" role="status">
+            <span>When your firewall asks to allow this app, choose <strong>Allow</strong> (Private networks) so pings work. If you already blocked it, add RoomPingPro in Windows Security → Firewall → Allow an app.</span>
+            <button type="button" class="firewall-dismiss" id="btn-dismiss-firewall" aria-label="Dismiss">×</button>
+        </div>
         <header>
             <div class="header-top">
                 <h1>RoomPing <span>Pro</span></h1>
@@ -58,6 +62,9 @@
                 <div class="setting-item">
                     <label>Audio Alerts</label>
                     <input type="checkbox" id="audio-toggle" checked onchange="toggleAudio()">
+                </div>
+                <div class="firewall-help">
+                    <strong>Pings not working?</strong> Allow this app in your firewall for <strong>Private</strong> networks (UDP port 5005). Windows: Security → Firewall → Allow an app. If you clicked Block by mistake, add RoomPingPro there and check Private.
                 </div>
                 <div class="setting-item">
                     <button type="button" class="save-btn" id="btn-check-updates" style="width:100%;">Check for updates</button>

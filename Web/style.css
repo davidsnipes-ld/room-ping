@@ -6,6 +6,38 @@ body {
     overflow-x: hidden;
 }
 
+.firewall-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #2a4a6a;
+    color: #e0e8f0;
+    font-size: 12px;
+    line-height: 1.35;
+}
+.firewall-banner .firewall-dismiss {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    flex-shrink: 0;
+}
+.firewall-banner .firewall-dismiss:hover { opacity: 0.8; }
+.firewall-banner strong { color: #fff; }
+
+.firewall-help {
+    padding: 12px 0;
+    font-size: 12px;
+    color: #bbb;
+    line-height: 1.4;
+    border-bottom: 1px solid #333;
+}
+
 .app-container {
     display: flex;
     flex-direction: column;

@@ -16,6 +16,11 @@ function attachClickHandlers() {
     byId('btn-check-updates', checkForUpdates);
     byId('btn-test-ping', testMyPing);
     byId('btn-copy-mac', copyMyMac);
+    byId('btn-dismiss-firewall', () => {
+        const b = document.getElementById('firewall-banner');
+        if (b) b.style.display = 'none';
+        try { localStorage.setItem('roomping-firewall-banner-dismissed', '1'); } catch (e) {}
+    });
 }
 
 // --- INITIALIZATION ---
@@ -23,6 +28,12 @@ window.addEventListener('pywebviewready', initApp);
 
 async function initApp() {
     console.log('Bridge found! Starting initialization...');
+    try {
+        if (localStorage.getItem('roomping-firewall-banner-dismissed') === '1') {
+            const b = document.getElementById('firewall-banner');
+            if (b) b.style.display = 'none';
+        }
+    } catch (e) {}
     await fetchProfile(0);
     await loadFriends();
 }
