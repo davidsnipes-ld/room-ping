@@ -88,9 +88,10 @@ class Bridge:
             return False
 
     def add_user(self, user_data):
-        """Add roommate by name + MAC only. Reject if MAC field looks like an IP; we resolve IP from MAC."""
+        """Add roommate by name + MAC; optional IP. Reject if MAC field looks like an IP."""
         mac = (user_data.get("mac") or "").strip()
         name = (user_data.get("name") or "").strip()
+        optional_ip = (user_data.get("ip") or "").strip()
         if self._looks_like_ip(mac):
             return {
                 "status": "error",
@@ -98,10 +99,12 @@ class Bridge:
             }
         if not name or not mac:
             return {"status": "error", "message": "Name and MAC address are required."}
+        if optional_ip and not self._looks_like_ip(optional_ip):
+            return {"status": "error", "message": "If you enter an IP, it must be valid (e.g. 192.168.1.42)."}
         settings = self.get_settings()
         if "users" not in settings:
             settings["users"] = []
-        settings["users"].append({"name": name, "mac": mac, "ip": ""})
+        settings["users"].append({"name": name, "mac": mac, "ip": optional_ip if optional_ip else ""})
         self._ensure_user_ip_slots(settings)
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=4)
@@ -171,8 +174,8 @@ class Bridge:
         result = self.get_reachability_and_ip(mac, name)
         return result["reachable"]
 
-    def get_reachability_and_ip(self, mac, name):
-        """Run one network scan; return reachable, ip, and a diagnostic message. Saves IP and message when done."""
+    def get_reachability_and_ip(self, mac, name, ip=None):
+        """Run one network scan; return reachable, ip, and a diagnostic. If a valid saved ip is passed, skip scan and use it."""
         if not mac:
             return {"reachable": False, "ip": None, "diagnostic": "No MAC provided."}
         my_mac = self.engine.get_my_mac().lower()
@@ -182,6 +185,13 @@ class Bridge:
             msg = "This device (you)."
             self.update_user_diagnostic(mac, msg)
             return {"reachable": True, "ip": "127.0.0.1", "diagnostic": msg}
+        # Use saved IP when provided so we don't run a scan (e.g. device doesn't respond to ping)
+        saved_ip = (ip or "").strip()
+        if saved_ip and self._looks_like_ip(saved_ip):
+            self.update_user_ip(mac, saved_ip)
+            msg = f"Using saved IP {saved_ip}. Ready to ping (no scan)."
+            self.update_user_diagnostic(mac, msg)
+            return {"reachable": True, "ip": saved_ip, "diagnostic": msg}
         ip = self.engine.scan_network(mac, name or "")
         if ip:
             self.update_user_ip(mac, ip)  # save IP so we can ping without rescanning

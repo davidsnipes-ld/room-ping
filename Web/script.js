@@ -205,22 +205,24 @@ async function pingFriend(mac, name) {
 async function saveFriend() {
     const name = document.getElementById('new-name').value.trim();
     const mac = document.getElementById('new-mac').value.trim();
+    const ip = document.getElementById('new-ip').value.trim();
 
     if (!name || !mac) {
         alert("Please fill in both name and MAC address.");
         return;
     }
-    const result = await pywebview.api.add_user({"name": name, "mac": mac});
+    const result = await pywebview.api.add_user({"name": name, "mac": mac, "ip": ip || undefined});
     if (result && result.status === 'error') {
         alert(result.message || "Could not add roommate.");
         return;
     }
     document.getElementById('new-name').value = '';
     document.getElementById('new-mac').value = '';
+    document.getElementById('new-ip').value = '';
     closeModal();
-    showToast("Added. Finding their IP on the network…", "success");
+    showToast(ip ? "Added with IP. Refreshing…" : "Added. Finding their IP on the network…", "success");
     if (window.pywebview.api.get_reachability_and_ip) {
-        await pywebview.api.get_reachability_and_ip(mac, name);
+        await pywebview.api.get_reachability_and_ip(mac, name, ip || null);
     }
     await loadFriends();
 }
@@ -284,8 +286,8 @@ async function loadFriends() {
         // Resolve reachability and IP in one scan; update status light and show IP under name; log to debug panel
         if (window.pywebview && window.pywebview.api && window.pywebview.api.get_reachability_and_ip) {
             try {
-                appendDebugLog(user.name, 'Checking network for MAC ' + user.mac + '…', 'info');
-                const result = await pywebview.api.get_reachability_and_ip(user.mac, user.name);
+                appendDebugLog(user.name, user.ip ? 'Using saved IP for ' + user.name + '…' : 'Checking network for MAC ' + user.mac + '…', 'info');
+                const result = await pywebview.api.get_reachability_and_ip(user.mac, user.name, user.ip || null);
                 if (statusEl.parentNode) {
                     statusEl.className = 'status ' + (result.reachable ? 'online' : 'offline');
                     statusEl.title = result.reachable
