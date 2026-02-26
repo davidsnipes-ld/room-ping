@@ -40,20 +40,16 @@
     
         <footer>
             <button class="add-btn" type="button" id="btn-add-roommate">+ Add Roommate</button>
+            <button type="button" class="console-btn" id="btn-console-toggle" title="Show console log for debugging">Console</button>
         </footer>
 
-        <div id="debug-log-wrap" class="debug-log-wrap">
-            <button type="button" class="debug-log-toggle" id="btn-debug-log" aria-expanded="false">
-                <span class="debug-log-label">Connection / debug log</span>
-                <span class="debug-log-badge" id="debug-log-badge">0</span>
-                <span class="debug-log-chevron">▼</span>
-            </button>
-            <div class="debug-log-panel" id="debug-log-panel" hidden>
-                <div class="debug-log-toolbar">
-                    <button type="button" class="debug-log-clear" id="btn-debug-clear">Clear</button>
-                </div>
-                <div class="debug-log-content" id="debug-log-content"></div>
+        <div id="console-wrap" class="console-wrap" hidden>
+            <div class="console-header">
+                <span class="console-title">Console log</span>
+                <button type="button" class="console-close" id="btn-console-close" title="Close">×</button>
+                <button type="button" class="console-clear" id="btn-console-clear">Clear</button>
             </div>
+            <div class="console-content" id="console-content"></div>
         </div>
 
         <div id="modal-overlay" class="modal-overlay" style="display:none;">
@@ -66,6 +62,19 @@
                 <div class="modal-buttons">
                     <button type="button" class="cancel-btn" id="btn-modal-cancel">Cancel</button>
                     <button type="button" class="save-btn" id="btn-modal-add">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="ip-modal" class="modal-overlay" style="display:none;">
+            <div class="modal">
+                <h2>Edit IP address</h2>
+                <p id="ip-modal-desc" style="font-size:11px; color:#888; margin-top:0; margin-bottom:8px;"></p>
+                <label for="ip-modal-ip">IP address</label>
+                <input type="text" id="ip-modal-ip" placeholder="e.g. 192.168.1.42">
+                <div class="modal-buttons">
+                    <button type="button" class="cancel-btn" id="btn-ip-cancel">Cancel</button>
+                    <button type="button" class="save-btn" id="btn-ip-save">Save</button>
                 </div>
             </div>
         </div>

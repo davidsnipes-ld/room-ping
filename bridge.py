@@ -119,6 +119,41 @@ class Bridge:
             with open(self.settings_file, "w") as f:
                 json.dump(settings, f, indent=4)
 
+    def set_user_ip(self, mac, ip):
+        """Manually set (or clear) the stored IP for a roommate from the UI."""
+        mac = (mac or "").strip()
+        if not mac:
+            return {"status": "error", "message": "MAC is required to update IP."}
+        ip = (ip or "").strip()
+
+        # Clearing IP: user wants us to forget it and re-detect from MAC next time
+        if not ip:
+            settings = self.get_settings()
+            user = self._find_user_by_mac(settings, mac)
+            if user is not None:
+                user["ip"] = ""
+                self._ensure_user_ip_slots(settings)
+                with open(self.settings_file, "w") as f:
+                    json.dump(settings, f, indent=4)
+                self.update_user_diagnostic(mac, "Cleared IP; will try to auto-detect from MAC next time.")
+            return {
+                "status": "success",
+                "ip": "",
+                "diagnostic": "Cleared IP; will try to auto-detect from MAC next time.",
+            }
+
+        # Validate IPv4 format before saving
+        if not self._looks_like_ip(ip):
+            return {
+                "status": "error",
+                "message": "Enter a valid IPv4 address like 192.168.1.42.",
+            }
+
+        self.update_user_ip(mac, ip)
+        msg = f"IP manually set to {ip}. We'll use this for pings."
+        self.update_user_diagnostic(mac, msg)
+        return {"status": "success", "ip": ip, "diagnostic": msg}
+
     def update_user_diagnostic(self, mac, message):
         """Store a short status message for this roommate so the user knows where things stand."""
         if not mac:

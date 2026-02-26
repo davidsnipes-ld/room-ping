@@ -1,21 +1,20 @@
 // --- APP STATE ---
 let audioEnabled = true;
-const debugLogEntries = [];
+const consoleLogEntries = [];
 
 function appendDebugLog(label, message, type) {
     const time = new Date().toLocaleTimeString();
-    debugLogEntries.push({ time, label, message, type: type || 'info' });
-    const content = document.getElementById('debug-log-content');
-    const badge = document.getElementById('debug-log-badge');
+    consoleLogEntries.push({ time, label, message, type: type || 'info' });
+    const content = document.getElementById('console-content');
     if (content) {
         const line = document.createElement('div');
-        line.className = 'debug-log-line log-' + (type === 'ok' ? 'ok' : type === 'fail' ? 'fail' : '');
-        line.innerHTML = '<span class="debug-time">' + time + '</span>' +
-            (label ? '<strong>[' + escapeHtml(label) + ']</strong> ' : '') + escapeHtml(message);
+        line.className = 'console-line log-' + (type === 'ok' ? 'ok' : type === 'fail' ? 'fail' : 'info');
+        line.innerHTML = '<span class="console-time">[' + escapeHtml(time) + ']</span> ' +
+            (label ? '<span class="console-label">[' + escapeHtml(label) + ']</span> ' : '') +
+            '<span class="console-msg">' + escapeHtml(message) + '</span>';
         content.appendChild(line);
         content.scrollTop = content.scrollHeight;
     }
-    if (badge) badge.textContent = debugLogEntries.length;
 }
 
 function escapeHtml(s) {
@@ -24,21 +23,81 @@ function escapeHtml(s) {
     return div.innerHTML;
 }
 
-function clearDebugLog() {
-    debugLogEntries.length = 0;
-    const content = document.getElementById('debug-log-content');
-    const badge = document.getElementById('debug-log-badge');
+function clearConsoleLog() {
+    consoleLogEntries.length = 0;
+    const content = document.getElementById('console-content');
     if (content) content.innerHTML = '';
-    if (badge) badge.textContent = '0';
 }
 
-function toggleDebugLog() {
-    const wrap = document.getElementById('debug-log-wrap');
-    const panel = document.getElementById('debug-log-panel');
-    if (!wrap || !panel) return;
-    const open = panel.hidden;
-    panel.hidden = !open;
-    wrap.setAttribute('data-open', open ? 'true' : 'false');
+function openConsole() {
+    const wrap = document.getElementById('console-wrap');
+    if (wrap) wrap.hidden = false;
+}
+
+function closeConsole() {
+    const wrap = document.getElementById('console-wrap');
+    if (wrap) wrap.hidden = true;
+}
+
+function toggleConsole() {
+    const wrap = document.getElementById('console-wrap');
+    if (!wrap) return;
+    wrap.hidden = !wrap.hidden;
+}
+
+function openIpModal(user) {
+    const overlay = document.getElementById('ip-modal');
+    if (!overlay) return;
+    overlay.dataset.mac = user.mac;
+    overlay.dataset.name = user.name || '';
+    const desc = document.getElementById('ip-modal-desc');
+    if (desc) {
+        const currentIp = user.ip || 'none yet (we will try to detect it)';
+        desc.textContent = `${user.name} — current IP: ${currentIp}`;
+    }
+    const input = document.getElementById('ip-modal-ip');
+    if (input) {
+        input.value = user.ip || '';
+    }
+    overlay.style.display = 'flex';
+}
+
+function closeIpModal() {
+    const overlay = document.getElementById('ip-modal');
+    if (!overlay) return;
+    overlay.style.display = 'none';
+}
+
+async function saveIpFromModal() {
+    const overlay = document.getElementById('ip-modal');
+    if (!overlay) return;
+    const mac = overlay.dataset.mac;
+    const name = overlay.dataset.name || '';
+    const input = document.getElementById('ip-modal-ip');
+    if (!input) return;
+    const ip = input.value.trim();
+
+    if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.set_user_ip) {
+        alert('Editing IP is not available in this build.');
+        return;
+    }
+
+    if (!ip) {
+        const ok = confirm('Clear this IP and let the app try to detect it automatically from the MAC address?');
+        if (!ok) return;
+    }
+
+    const result = await pywebview.api.set_user_ip(mac, ip);
+    if (result && result.status === 'error') {
+        alert(result.message || 'Could not update IP.');
+        return;
+    }
+
+    closeIpModal();
+    if (result && result.diagnostic) {
+        appendDebugLog(name, result.diagnostic, 'info');
+    }
+    await loadFriends();
 }
 
 // Attach UI click handlers as soon as DOM is ready (so Add Roommate / Settings always work)
@@ -61,15 +120,18 @@ function attachClickHandlers() {
         if (b) b.style.display = 'none';
         try { localStorage.setItem('roomping-firewall-banner-dismissed', '1'); } catch (e) {}
     });
-    byId('btn-debug-log', toggleDebugLog);
-    byId('btn-debug-clear', clearDebugLog);
+    byId('btn-console-toggle', toggleConsole);
+    byId('btn-console-close', closeConsole);
+    byId('btn-console-clear', clearConsoleLog);
+    byId('btn-ip-cancel', closeIpModal);
+    byId('btn-ip-save', saveIpFromModal);
 }
 
 // --- INITIALIZATION ---
 window.addEventListener('pywebviewready', initApp);
 
 async function initApp() {
-    console.log('Bridge found! Starting initialization...');
+    appendDebugLog('', 'App starting…', 'info');
     try {
         if (localStorage.getItem('roomping-firewall-banner-dismissed') === '1') {
             const b = document.getElementById('firewall-banner');
@@ -78,6 +140,7 @@ async function initApp() {
     } catch (e) {}
     await fetchProfile(0);
     await loadFriends();
+    appendDebugLog('', 'Ready. Use Console to see connection and ping details.', 'info');
 }
 
 async function fetchProfile(retries) {
@@ -95,7 +158,7 @@ async function fetchProfile(retries) {
                     netEl.textContent = parts.join(' · ');
                     netEl.title = 'Same subnet = can find each other. Receiver must allow UDP ' + (info.port || 5005) + '.';
                 }
-                console.log("Profile Loaded:", info.name);
+                appendDebugLog('', 'Profile loaded: ' + info.name + ', MAC ' + info.mac, 'info');
                 return;
             }
         }
@@ -186,7 +249,7 @@ async function loadFriends() {
         card.className = 'card';
         card.dataset.mac = user.mac;
         card.addEventListener('click', (e) => {
-            if (e.target.closest('.delete-btn')) return;
+            if (e.target.closest('.delete-btn') || e.target.closest('.ip-btn')) return;
             pingFriend(user.mac, user.name);
         });
         const storedIp = user.ip ? ('IP: ' + user.ip) : '';
@@ -199,6 +262,7 @@ async function loadFriends() {
     </div>
     <div class="card-actions">
         <button class="ping-btn" type="button">PING</button>
+        <button class="ip-btn" type="button" title="View or edit the IP we have stored for this MAC">IP</button>
         <button class="delete-btn" type="button">🗑️</button>
     </div>
 `;
@@ -208,6 +272,13 @@ async function loadFriends() {
             e.stopPropagation();
             deleteFriend(e, user.mac);
         });
+        const ipBtn = card.querySelector('.ip-btn');
+        if (ipBtn) {
+            ipBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openIpModal(user);
+            });
+        }
         friendsList.appendChild(card);
 
         // Resolve reachability and IP in one scan; update status light and show IP under name; log to debug panel
