@@ -84,6 +84,22 @@ python main.py
 
 ---
 
+## Troubleshooting: can't see each other or send pings?
+
+**How it works (the "goal post"):**
+- The app **resolves roommate IP from their MAC** on your machine: it scans the network (broadcast + ARP, then pings each IP in your subnet) to fill the ARP table, then looks up their MAC. So **you** must be on a network where their device can be discovered (same subnet).
+- The app shows **Your IP** and **We scan: …** in the profile so both people can check: if one is `192.168.1.x` and the other `192.168.0.x`, they're on different subnets and won't see each other.
+- **Sender** finds receiver's IP from MAC, then sends UDP to that IP on port 5005. **Receiver** must be running the app (listening on port 5005) and allow inbound UDP 5005 in the firewall.
+
+**Checklist:**
+1. **Same WiFi / same subnet** – Check "Your IP" and "We scan" on both devices; they should be in the same range (e.g. both 192.168.1.x).
+2. **MAC is correct** – Roommate is added by MAC; one wrong character and we never find them. They can copy their MAC from their app.
+3. **Receiver app is open** – The app must be running to listen for pings.
+4. **Firewall** – Receiver: allow RoomPingPro (or Python) for **Private** networks, or allow **inbound UDP 5005**. Sender: usually fine; some networks block ping/ARP (we try multiple subnets).
+5. **Refresh** – Use the refresh button to rescan; the first scan can take a few seconds.
+
+---
+
 ## Firewall
 
 The app uses **UDP port 5005**. Both sender and receiver must allow it. If the other person is never found or never gets the ping (e.g. on Windows), they should allow RoomPingPro (or Python) in Windows Security → Firewall → Allow an app for Private networks, or allow inbound UDP port 5005. The first ping can take a few seconds. 
@@ -122,10 +138,16 @@ You must build on each OS to get that OS’s executable (e.g. you get RoomPingPr
 | `main.py`            | Entry point when running from source |
 | `bridge.py`          | UI ↔ Python; creates `settings.json` on first run |
 | `logic.py`           | MAC detection and network ping (all platforms) |
-| `Web/`               | App UI (HTML/CSS/JS) |
+| `Web/`               | App UI (HTML/CSS/JS); `Web/assets/` holds optional `alert.mp3` |
 | `RoomPingPro.spec`   | PyInstaller spec for building the standalone app |
 | `version.txt`        | Line 1: app version; line 2: GitHub owner/repo for update check |
-| `settings.json`      | Your roommates list (created automatically; not committed) |
+| `settings.example.json` | Template; copy to `settings.json` (auto-created if missing) |
+| `run.bat` / `run.sh` | One-click run from source (Windows / Mac–Linux) |
+| `build-windows.bat` / `build-linux.sh` | Build executable on Windows / Linux |
+| `RoomPingPro.desktop` | Linux app menu launcher template |
+| `settings.json`      | Your roommates list (created automatically; in `.gitignore`) |
+
+**Dependencies:** The only required package is **pywebview** (`requirements.txt`). It pulls in one platform-specific dependency (e.g. WebView2 support on Windows, Qt/GTK on Linux) so the app can show a window—those are needed and kept minimal. The built `.exe`/`.app` size is mostly Python + pywebview; we exclude unused stdlib (tests, tkinter, etc.) in the spec to keep the bundle smaller.
 
 ---
 

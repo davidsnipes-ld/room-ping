@@ -9,10 +9,9 @@ venv/
 env/
 .env/
 
-# App / build
+# App / build (keep RoomPingPro.spec in repo for building)
 build/
 dist/
-*.spec
 *.egg-info/
 *.egg
 

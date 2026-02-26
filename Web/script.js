@@ -34,6 +34,14 @@ async function fetchProfile(retries) {
             if (info) {
                 document.getElementById('my-name').innerText = info.name;
                 document.getElementById('my-mac').innerText = info.mac;
+                const netEl = document.getElementById('my-network');
+                if (netEl && (info.ips || info.subnets)) {
+                    const parts = [];
+                    if (info.ips && info.ips.length) parts.push('Your IP: ' + info.ips.join(', '));
+                    if (info.subnets && info.subnets.length) parts.push('We scan: ' + info.subnets.join(', '));
+                    netEl.textContent = parts.join(' · ');
+                    netEl.title = 'Same subnet = can find each other. Receiver must allow UDP ' + (info.port || 5005) + '.';
+                }
                 console.log("Profile Loaded:", info.name);
                 return;
             }
@@ -62,11 +70,15 @@ async function testMyPing() {
 async function pingFriend(mac, name) {
     console.log(`Pinging: ${name}`);
     if (window.pywebview && window.pywebview.api) {
-        const success = await pywebview.api.ping_user(mac, name);
-        if (success) {
+        const result = await pywebview.api.ping_user(mac, name);
+        const ok = result && (result.success === true);
+        if (ok) {
             showToast(`Ping sent to ${name}!`, "success");
         } else {
-            showToast(`${name} not found. Check WiFi!`, "error");
+            const msg = result && result.hint
+                ? result.hint + (result.your_ip ? ' Your IP: ' + result.your_ip + '.' : '')
+                : (name + ' not found. Same WiFi? Is their app open? Firewall allows UDP 5005?');
+            showToast(msg, "error");
         }
     }
 }
@@ -138,7 +150,9 @@ async function loadFriends() {
                 const result = await pywebview.api.get_reachability_and_ip(user.mac, user.name);
                 if (statusEl.parentNode) {
                     statusEl.className = 'status ' + (result.reachable ? 'online' : 'offline');
-                    statusEl.title = result.reachable ? 'Online' : 'Offline / not reachable';
+                    statusEl.title = result.reachable
+                        ? 'Online – we resolved their IP from MAC'
+                        : 'Offline – could not find this MAC on the network. Same WiFi? Same subnet? Try refresh.';
                 }
                 if (ipEl && ipEl.parentNode) {
                     if (result.ip) {

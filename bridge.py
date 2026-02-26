@@ -85,29 +85,55 @@ class Bridge:
         return {"reachable": ip is not None, "ip": ip}
 
     def ping_user(self, mac, name):
+        """Send ping. Returns {success, your_ip?, subnets?, hint?} for UI feedback."""
+        net = self.engine.get_my_network_info()
         my_mac = self.engine.get_my_mac()
         my_hostname = socket.gethostname().lower()
 
-        if mac.lower().replace('-', ':') == my_mac.lower() or name.lower() in my_hostname:
+        if mac.lower().replace("-", ":") == my_mac.lower() or (name and name.lower() in my_hostname):
             target_ip = "127.0.0.1"
         else:
-            target_ip = self.engine.scan_network(mac, name)
+            target_ip = self.engine.scan_network(mac, name or "")
 
         if target_ip:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.sendto(b"PING", (target_ip, DEFAULT_PORT))
-            return True
-        return False
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                    s.sendto(b"PING", (target_ip, DEFAULT_PORT))
+                return {"success": True}
+            except Exception as e:
+                return {
+                    "success": False,
+                    "your_ip": net.get("ips", [""])[0] if net.get("ips") else "",
+                    "subnets": net.get("subnets", []),
+                    "hint": str(e),
+                }
+        return {
+            "success": False,
+            "your_ip": net.get("ips", [""])[0] if net.get("ips") else "",
+            "subnets": net.get("subnets", []),
+            "hint": "Could not resolve their IP from MAC. Same WiFi? Same subnet? Their firewall may block ping.",
+        }
     
     def get_my_info(self):
         try:
             name = str(socket.gethostname())
             mac = str(self.engine.get_my_mac())
-            print(f"Sending Profile: {name} | {mac}") # Check your terminal for this!
-            return {"name": name, "mac": mac}
+            net = self.engine.get_my_network_info()
+            print(f"Sending Profile: {name} | {mac}")  # Check your terminal for this!
+            return {
+                "name": name,
+                "mac": mac,
+                "ips": net.get("ips", []),
+                "subnets": net.get("subnets", []),
+                "port": net.get("port", 5005),
+            }
         except Exception as e:
             print(f"Profile Error: {e}")
-            return {"name": "Unknown Device", "mac": "00:00:00:00:00:00"}
+            return {"name": "Unknown Device", "mac": "00:00:00:00:00:00", "ips": [], "subnets": [], "port": 5005}
+
+    def get_my_network_info(self):
+        """Return this machine's IP(s) and subnet(s) for diagnostics (goal post for sender/receiver)."""
+        return self.engine.get_my_network_info()
     
     def delete_user(self, mac):
         """Removes a user from settings.json by their MAC address"""

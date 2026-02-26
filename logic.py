@@ -104,6 +104,22 @@ class NetworkEngine:
             print(f"MAC discovery error: {e}")
             return _mac_from_uuid()
 
+    def get_my_network_info(self):
+        """Return this machine's IP(s) and subnet(s) so sender/receiver can verify they're on the same network."""
+        try:
+            local_ips = socket.gethostbyname_ex(socket.gethostname())[2]
+        except socket.gaierror:
+            return {"ips": [], "subnets": [], "port": self.port}
+        ips = [ip for ip in local_ips if not ip.startswith("127.") and len(ip.split(".")) == 4]
+        seen = set()
+        subnets = []
+        for ip in ips:
+            prefix = ".".join(ip.split(".")[:-1]) + ".x"
+            if prefix not in seen:
+                seen.add(prefix)
+                subnets.append(prefix)
+        return {"ips": ips, "subnets": subnets[:5], "port": self.port}
+
     def _read_arp_for_mac(self, target_clean, arp_bin):
         """Run arp -a (or -an) and return IP if target MAC is in the table."""
         if self._os == "Windows":
@@ -163,27 +179,27 @@ class NetworkEngine:
             if found:
                 return found
 
-            # Pass 2: ping each IP in subnet so ARP table fills (helps when target blocks broadcast, e.g. Windows)
-            subnet_prefix = None
+            # Pass 2: ping each IP in each local subnet so ARP fills (target may be on another interface)
+            prefixes = []
             for ip in local_ips:
                 if ip.startswith("127.") or len(ip.split(".")) != 4:
                     continue
-                subnet_prefix = ".".join(ip.split(".")[:-1]) + "."
-                break
-            if not subnet_prefix:
-                return None
-            for i in range(1, 255):
-                candidate = subnet_prefix + str(i)
-                subprocess.Popen(
-                    [ping_bin, ping_count, "1", candidate],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    creationflags=creationflags,
-                )
-            time.sleep(2.5)
-            found = self._read_arp_for_mac(target_clean, arp_bin)
-            if found:
-                return found
+                p = ".".join(ip.split(".")[:-1]) + "."
+                if p not in prefixes:
+                    prefixes.append(p)
+            for subnet_prefix in prefixes[:3]:  # limit to 3 subnets
+                for i in range(1, 255):
+                    candidate = subnet_prefix + str(i)
+                    subprocess.Popen(
+                        [ping_bin, ping_count, "1", candidate],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        creationflags=creationflags,
+                    )
+                time.sleep(2.2)
+                found = self._read_arp_for_mac(target_clean, arp_bin)
+                if found:
+                    return found
         except Exception as e:
             print(f"Scan error: {e}")
         return None
