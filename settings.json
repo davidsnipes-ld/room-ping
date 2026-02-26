@@ -18,5 +18,10 @@
             "Aaron"
         ]
     },
-    "users": []
+    "users": [
+        {
+            "name": "Aaron",
+            "mac": "50:EB:F6:7F:BF:8D"
+        }
+    ]
 }
