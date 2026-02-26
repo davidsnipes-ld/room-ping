@@ -16,6 +16,18 @@ No Python or other install needed. Your roommates list is stored next to the app
 
 **Windows:** If the window is blank, install [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (many PCs already have it).
 
+### Double‑click, pin to taskbar/dock, open at startup
+
+The downloaded app is a normal executable you can use like any other:
+
+| What you want | Windows | macOS | Linux |
+|---------------|---------|--------|--------|
+| **Open the app** | Double‑click **RoomPingPro.exe** | Double‑click **RoomPingPro.app** | Run `./RoomPingPro` or double‑click it in your file manager |
+| **Pin to taskbar / dock** | Right‑click the .exe → **Pin to taskbar** (or drag it to the taskbar) | Drag **RoomPingPro.app** to the Dock | Add to favorites or use the app menu (see below) |
+| **Open at login / startup** | **Settings → Apps → Startup** → **Add** → browse to **RoomPingPro.exe** (or put a shortcut to it in the **Startup** folder) | **System Settings → General → Login Items** → **Add (+)** → choose **RoomPingPro.app** | Add **RoomPingPro** to **Startup Applications** (use the full path to the file, e.g. `/home/you/RoomPingPro`) |
+
+**Linux (optional):** To get a proper app menu entry and “Add to Startup,” copy the repo file **RoomPingPro.desktop** into the same folder as the **RoomPingPro** binary, edit the file and replace `/path/to` with the real folder path, then copy the edited file to `~/.local/share/applications/`. You can then launch from the app menu and add it to Startup Applications.
+
 ---
 
 ## Run from source (if you have Python)

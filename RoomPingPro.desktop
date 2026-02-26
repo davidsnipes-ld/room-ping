@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=RoomPing Pro
+Comment=Ping roommates on the same Wi-Fi with one click
+Exec=/path/to/RoomPingPro
+Path=/path/to
+Icon=network-wireless
+Terminal=false
+Type=Application
+Categories=Network;Utility;
+StartupNotify=true
