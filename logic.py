@@ -105,7 +105,7 @@ class NetworkEngine:
             return _mac_from_uuid()
 
     def get_my_network_info(self):
-        """Return this machine's IP(s) and subnet(s) so sender/receiver can verify they're on the same network."""
+        """Return this machine's IP(s) and subnet(s) we scan (including neighbor subnets for cross-subnet discovery)."""
         try:
             local_ips = socket.gethostbyname_ex(socket.gethostname())[2]
         except socket.gaierror:
@@ -114,11 +114,23 @@ class NetworkEngine:
         seen = set()
         subnets = []
         for ip in ips:
-            prefix = ".".join(ip.split(".")[:-1]) + ".x"
+            parts = ip.split(".")
+            prefix = ".".join(parts[:-1]) + ".x"
             if prefix not in seen:
                 seen.add(prefix)
                 subnets.append(prefix)
-        return {"ips": ips, "subnets": subnets[:5], "port": self.port}
+            try:
+                third = int(parts[2])
+                for delta in (1, -1):
+                    neighbor = third + delta
+                    if 0 <= neighbor <= 255:
+                        neighbor_x = f"{parts[0]}.{parts[1]}.{neighbor}.x"
+                        if neighbor_x not in seen:
+                            seen.add(neighbor_x)
+                            subnets.append(neighbor_x)
+            except (ValueError, IndexError):
+                pass
+        return {"ips": ips, "subnets": subnets[:6], "port": self.port}
 
     def _read_arp_for_mac(self, target_clean, arp_bin):
         """Run arp -a (or -an) and return IP if target MAC is in the table."""
@@ -179,15 +191,28 @@ class NetworkEngine:
             if found:
                 return found
 
-            # Pass 2: ping each IP in each local subnet so ARP fills (target may be on another interface)
+            # Pass 2: ping each IP in each local subnet + neighbor subnets (e.g. 192.168.0.x and 192.168.1.x)
+            # so devices on different subnets (same router, different AP) can find each other by MAC
             prefixes = []
             for ip in local_ips:
                 if ip.startswith("127.") or len(ip.split(".")) != 4:
                     continue
-                p = ".".join(ip.split(".")[:-1]) + "."
+                parts = ip.split(".")
+                p = ".".join(parts[:-1]) + "."
                 if p not in prefixes:
                     prefixes.append(p)
-            for subnet_prefix in prefixes[:3]:  # limit to 3 subnets
+                # Add neighboring /24 subnet (e.g. 192.168.0 -> 192.168.1 and vice versa)
+                try:
+                    third = int(parts[2])
+                    for delta in (1, -1):
+                        neighbor = third + delta
+                        if 0 <= neighbor <= 255:
+                            neighbor_p = f"{parts[0]}.{parts[1]}.{neighbor}."
+                            if neighbor_p not in prefixes:
+                                prefixes.append(neighbor_p)
+                except (ValueError, IndexError):
+                    pass
+            for subnet_prefix in prefixes[:5]:  # up to 5 subnets (own + neighbors)
                 for i in range(1, 255):
                     candidate = subnet_prefix + str(i)
                     subprocess.Popen(
@@ -205,7 +230,7 @@ class NetworkEngine:
         return None
 
     def listen_forever(self, callback):
-        """Listen for UDP PING packets and call callback(sender_ip) for each."""
+        """Listen for UDP PING packets; call callback(sender_ip); send PONG back so sender knows it was delivered."""
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             try:
                 s.bind(("", self.port))
@@ -217,5 +242,10 @@ class NetworkEngine:
                             callback(addr[0])
                         except Exception as e:
                             print(f"Ping callback error: {e}")
+                        # Send PONG back to sender so they get delivery confirmation
+                        try:
+                            s.sendto(b"PONG", addr)
+                        except Exception as e:
+                            print(f"PONG send error: {e}")
             except Exception as e:
                 print(f"Listener error: {e}")

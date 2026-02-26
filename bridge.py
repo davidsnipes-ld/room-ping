@@ -195,10 +195,21 @@ class Bridge:
         self.update_user_diagnostic(mac, msg)
         return {"reachable": False, "ip": None, "diagnostic": msg}
 
-    def _send_ping(self, target_ip):
-        """Send the ping to an IP address only. We never send to a MAC; MAC is only used to find the IP."""
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.sendto(b"PING", (target_ip, DEFAULT_PORT))
+    def _send_ping(self, target_ip, wait_for_pong_seconds=2.0):
+        """Send PING to target_ip; if receiver sends PONG back, return (True, True). Else (True, False) or (False, False) on send error."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.sendto(b"PING", (target_ip, DEFAULT_PORT))
+                s.settimeout(wait_for_pong_seconds)
+                try:
+                    data, _ = s.recvfrom(1024)
+                    if data == b"PONG":
+                        return (True, True)
+                except socket.timeout:
+                    pass
+                return (True, False)
+        except Exception:
+            return (False, False)
 
     def ping_user(self, mac, name):
         """Ping is always sent to an IP. MAC is only the signal to look up (or recall) that IP. Uses stored IP if we have it, else resolves MAC → IP and saves it."""
@@ -209,13 +220,13 @@ class Bridge:
 
         if mac_clean == my_mac or (name and name.lower() in my_hostname):
             self.update_user_ip(mac, "127.0.0.1")
-            try:
-                self._send_ping("127.0.0.1")
-                self.update_user_diagnostic(mac, "Ping sent (self).")
-                return {"success": True, "diagnostic": "Ping sent (self)."}
-            except Exception as e:
-                self.update_user_diagnostic(mac, f"Send failed: {e}. Check your firewall.")
-                return {"success": False, "your_ip": "", "subnets": [], "hint": str(e), "diagnostic": f"Send failed: {e}. Check your firewall."}
+            sent, got_pong = self._send_ping("127.0.0.1")
+            if not sent:
+                self.update_user_diagnostic(mac, "Send failed. Check your firewall.")
+                return {"success": False, "your_ip": "", "subnets": [], "hint": "Send failed", "diagnostic": "Send failed. Check your firewall."}
+            msg = "Ping sent (self). Delivered!" if got_pong else "Ping sent (self). No confirmation."
+            self.update_user_diagnostic(mac, msg)
+            return {"success": True, "diagnostic": msg, "delivered": got_pong}
 
         settings = self.get_settings()
         user = self._find_user_by_mac(settings, mac)
@@ -223,34 +234,39 @@ class Bridge:
 
         # 1) Send to stored IP if we have it (ping always goes to IP, never to MAC)
         if stored_ip:
-            try:
-                self._send_ping(stored_ip)
-                msg = f"Ping sent to {stored_ip} (saved IP). If they didn't get it: their app may be closed or their firewall blocking UDP 5005."
-                self.update_user_diagnostic(mac, msg)
-                return {"success": True, "diagnostic": msg}
-            except Exception as e:
+            sent, got_pong = self._send_ping(stored_ip)
+            if not sent:
                 self.update_user_diagnostic(mac, f"Found at {stored_ip} but send failed. Check your firewall (outbound UDP 5005).")
-                pass
+            else:
+                if got_pong:
+                    msg = f"Delivered to {stored_ip}! They got the ping."
+                else:
+                    msg = f"Sent to {stored_ip} (saved IP). No confirmation — their app may be closed or firewall blocking UDP 5005."
+                self.update_user_diagnostic(mac, msg)
+                return {"success": True, "diagnostic": msg, "delivered": got_pong}
+            # send failed; fall through to try resolving by MAC
 
         # 2) Resolve MAC → IP (MAC is only lookup key), then save IP and send ping to that IP
         target_ip = self.engine.scan_network(mac, name or "")
         if target_ip:
             self.update_user_ip(mac, target_ip)  # save IP for next time
-            try:
-                self._send_ping(target_ip)
-                msg = f"Ping sent to {target_ip} (IP saved). If they didn't get it: their app may be closed or their firewall blocking UDP 5005."
-                self.update_user_diagnostic(mac, msg)
-                return {"success": True, "diagnostic": msg}
-            except Exception as e:
+            sent, got_pong = self._send_ping(target_ip)
+            if not sent:
                 msg = f"Found at {target_ip} but send failed. Check your firewall (outbound UDP 5005)."
                 self.update_user_diagnostic(mac, msg)
                 return {
                     "success": False,
                     "your_ip": net.get("ips", [""])[0] if net.get("ips") else "",
                     "subnets": net.get("subnets", []),
-                    "hint": str(e),
+                    "hint": msg,
                     "diagnostic": msg,
                 }
+            if got_pong:
+                msg = f"Delivered to {target_ip}! They got the ping. (IP saved.)"
+            else:
+                msg = f"Sent to {target_ip} (IP saved). No confirmation — their app may be closed or firewall blocking UDP 5005."
+            self.update_user_diagnostic(mac, msg)
+            return {"success": True, "diagnostic": msg, "delivered": got_pong}
 
         msg = "Could not find on network. Same WiFi? Their device on? Their firewall may block discovery (ping)."
         self.update_user_diagnostic(mac, msg)
