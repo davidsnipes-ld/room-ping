@@ -1,0 +1,3 @@
+([('RoomPingPro',
+   '/Users/davidsnipes/VSCODE/AlertNotification/dist/RoomPingPro',
+   'EXECUTABLE')],)

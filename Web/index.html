@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+    <title>RoomPing Pro</title>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="header-top">
+                <h1>RoomPing <span>Pro</span></h1>
+                <button class="icon-btn" onclick="openSettings()">⚙️</button>
+            </div>
+        
+            <div id="my-profile" class="my-profile-card">
+                <div class="profile-info">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="label">My Device</span>
+                        <button class="test-btn" onclick="testMyPing()">Test Ping ⚡</button>
+                    </div>
+                    <h2 id="my-name">Detecting...</h2>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <code style="color: #ff4b2b;">MAC: <span id="my-mac">--:--:--</span></code>
+                        <button onclick="copyMyMac()" class="copy-btn">📋</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+    
+        <main id="friends-list"></main>
+    
+        <footer>
+            <button class="add-btn" onclick="openModal()">+ Add Roommate</button>
+        </footer>
+
+        <div id="modal-overlay" class="modal-overlay" style="display:none;">
+            <div class="modal">
+                <h2>Add Roommate</h2>
+                <label for="new-name">Name</label>
+                <input type="text" id="new-name" placeholder="e.g. Alex">
+                <label for="new-mac">MAC Address</label>
+                <input type="text" id="new-mac" placeholder="aa:bb:cc:dd:ee:ff">
+                <div class="modal-buttons">
+                    <button type="button" class="cancel-btn" onclick="closeModal()">Cancel</button>
+                    <button type="button" class="save-btn" onclick="saveFriend()">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="settings-modal" class="modal-overlay" style="display:none;">
+            <div class="modal">
+                <h2>Settings</h2>
+                <div class="setting-item">
+                    <label>Audio Alerts</label>
+                    <input type="checkbox" id="audio-toggle" checked onchange="toggleAudio()">
+                </div>
+                <button onclick="closeSettings()" class="save-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <audio id="ping-sound" src="assets/alert.mp3"></audio>
+
+    <script src="script.js"></script>
+</body>
+</html>

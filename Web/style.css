@@ -1,0 +1,193 @@
+body {
+    background-color: #121212;
+    color: white;
+    font-family: 'Segoe UI', sans-serif;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+header {
+    padding: 20px;
+    background: #1f1f1f;
+    text-align: center;
+    border-bottom: 2px solid #333;
+}
+
+header span { color: #ff4b2b; }
+
+.header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
+
+.my-profile-card {
+    background: #2a2a2a;
+    padding: 15px;
+    border-radius: 12px;
+    text-align: left;
+    border-left: 4px solid #ff4b2b;
+    margin: 10px 0;
+}
+.profile-info h2 { margin: 0; font-size: 16px; color: #fff; }
+.profile-info code { color: #888; font-size: 11px; }
+.label { font-size: 10px; color: #ff4b2b; text-transform: uppercase; font-weight: bold; }
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid #333;
+}
+
+.card-actions { display: flex; gap: 10px; align-items: center; }
+.delete-btn { background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.5; transition: 0.2s; }
+.delete-btn:hover { opacity: 1; transform: scale(1.1); }
+
+.test-btn {
+    background: rgba(255, 75, 43, 0.1);
+    border: 1px solid #ff4b2b;
+    color: #ff4b2b;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.test-btn:hover {
+    background: #ff4b2b;
+    color: white;
+}
+
+.copy-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    filter: grayscale(1);
+}
+
+.copy-btn:hover {
+    filter: grayscale(0);
+}
+
+main {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.card {
+    background: #252525;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.card:hover {
+    background: #333;
+    transform: scale(1.02);
+}
+
+.status {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 15px;
+}
+
+.online { background-color: #4caf50; box-shadow: 0 0 8px #4caf50; }
+
+.info { flex: 1; }
+.info h3 { margin: 0; font-size: 18px; }
+.info p { margin: 5px 0 0; color: #888; font-size: 12px; }
+
+.ping-btn {
+    background: #ff4b2b;
+    border: none;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-weight: bold;
+}
+
+footer {
+    padding: 20px;
+    text-align: center;
+}
+
+.add-btn {
+    background: transparent;
+    border: 2px dashed #444;
+    color: #888;
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.ping-notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ff4b2b;
+    color: white;
+    padding: 15px 30px;
+    border-radius: 50px;
+    box-shadow: 0 4px 15px rgba(255, 75, 43, 0.4);
+    z-index: 9999;
+    animation: slideDown 0.5s ease-out;
+}
+
+@keyframes slideDown {
+    from { top: -100px; }
+    to { top: 20px; }
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 10000;
+}
+
+.modal {
+    background: #252525;
+    padding: 30px;
+    border-radius: 15px;
+    width: 300px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.modal input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    background: #121212;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 5px;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+.save-btn { background: #ff4b2b; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+.cancel-btn { background: transparent; color: #888; border: none; cursor: pointer; }

@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env/
+
+# App / build
+build/
+dist/
+*.spec
+*.egg-info/
+*.egg
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# User data (clone gets settings.example.json; copy to settings.json)
+settings.json
+
+# Logs
+*.log
+ping_log.txt

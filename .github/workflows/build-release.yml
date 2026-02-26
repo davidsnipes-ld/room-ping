@@ -1,0 +1,92 @@
+# Build RoomPing Pro for Windows, macOS, and Linux.
+# To publish a release: create a tag (e.g. v1.0.0) and push, then create a Release from the tag and upload the artifacts from this run.
+
+name: Build release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: RoomPingPro-Windows.zip
+            exe_path: dist/RoomPingPro.exe
+          - os: macos-latest
+            artifact: RoomPingPro-macOS.zip
+            exe_path: dist/RoomPingPro.app
+          - os: ubuntu-22.04
+            artifact: RoomPingPro-Linux.zip
+            exe_path: dist/RoomPingPro
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller -r requirements.txt
+          if [ "$RUNNER_OS" = "Linux" ]; then pip install "pywebview[qt]"; fi
+
+      - name: Build with PyInstaller
+        run: pyinstaller --noconfirm RoomPingPro.spec
+
+      - name: Prepare Windows artifact
+        if: matrix.os == 'windows-latest'
+        run: |
+          Compress-Archive -Path dist/RoomPingPro.exe -DestinationPath RoomPingPro-Windows.zip
+
+      - name: Prepare macOS artifact
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd dist && zip -r ../RoomPingPro-macOS.zip RoomPingPro.app && cd ..
+
+      - name: Prepare Linux artifact
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          chmod +x dist/RoomPingPro
+          zip -j RoomPingPro-Linux.zip dist/RoomPingPro
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: true
+          files: |
+            artifacts/RoomPingPro-Windows.zip/RoomPingPro-Windows.zip
+            artifacts/RoomPingPro-macOS.zip/RoomPingPro-macOS.zip
+            artifacts/RoomPingPro-Linux.zip/RoomPingPro-Linux.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
