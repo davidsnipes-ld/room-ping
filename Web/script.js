@@ -1,5 +1,45 @@
 // --- APP STATE ---
 let audioEnabled = true;
+const debugLogEntries = [];
+
+function appendDebugLog(label, message, type) {
+    const time = new Date().toLocaleTimeString();
+    debugLogEntries.push({ time, label, message, type: type || 'info' });
+    const content = document.getElementById('debug-log-content');
+    const badge = document.getElementById('debug-log-badge');
+    if (content) {
+        const line = document.createElement('div');
+        line.className = 'debug-log-line log-' + (type === 'ok' ? 'ok' : type === 'fail' ? 'fail' : '');
+        line.innerHTML = '<span class="debug-time">' + time + '</span>' +
+            (label ? '<strong>[' + escapeHtml(label) + ']</strong> ' : '') + escapeHtml(message);
+        content.appendChild(line);
+        content.scrollTop = content.scrollHeight;
+    }
+    if (badge) badge.textContent = debugLogEntries.length;
+}
+
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
+function clearDebugLog() {
+    debugLogEntries.length = 0;
+    const content = document.getElementById('debug-log-content');
+    const badge = document.getElementById('debug-log-badge');
+    if (content) content.innerHTML = '';
+    if (badge) badge.textContent = '0';
+}
+
+function toggleDebugLog() {
+    const wrap = document.getElementById('debug-log-wrap');
+    const panel = document.getElementById('debug-log-panel');
+    if (!wrap || !panel) return;
+    const open = panel.hidden;
+    panel.hidden = !open;
+    wrap.setAttribute('data-open', open ? 'true' : 'false');
+}
 
 // Attach UI click handlers as soon as DOM is ready (so Add Roommate / Settings always work)
 function attachClickHandlers() {
@@ -21,6 +61,8 @@ function attachClickHandlers() {
         if (b) b.style.display = 'none';
         try { localStorage.setItem('roomping-firewall-banner-dismissed', '1'); } catch (e) {}
     });
+    byId('btn-debug-log', toggleDebugLog);
+    byId('btn-debug-clear', clearDebugLog);
 }
 
 // --- INITIALIZATION ---
@@ -83,11 +125,8 @@ async function pingFriend(mac, name) {
     if (window.pywebview && window.pywebview.api) {
         const result = await pywebview.api.ping_user(mac, name);
         const ok = result && (result.success === true);
-        const card = Array.from(document.querySelectorAll('.card')).find(c => c.dataset.mac === mac);
-        const logEl = card ? card.querySelector('.card-log') : null;
-        if (result && result.diagnostic && logEl) {
-            logEl.textContent = result.diagnostic;
-            logEl.className = 'card-log ' + (ok ? 'card-log-ok' : 'card-log-fail');
+        if (result && result.diagnostic) {
+            appendDebugLog(name, result.diagnostic, ok ? 'ok' : 'fail');
         }
         if (ok) {
             showToast(`Ping sent to ${name}!`, "success");
@@ -151,14 +190,12 @@ async function loadFriends() {
             pingFriend(user.mac, user.name);
         });
         const storedIp = user.ip ? ('IP: ' + user.ip) : '';
-        const logText = user.last_check || 'Checking…';
         card.innerHTML = `
     <div class="status unknown" title="Checking..."></div>
     <div class="info">
         <h3>${user.name}</h3>
         <p class="card-mac">${user.mac}</p>
         <p class="card-ip" style="${storedIp ? '' : 'display:none;'}">${storedIp}</p>
-        <p class="card-log" title="What happened when we looked for this device">${logText}</p>
     </div>
     <div class="card-actions">
         <button class="ping-btn" type="button">PING</button>
@@ -167,16 +204,16 @@ async function loadFriends() {
 `;
         const statusEl = card.querySelector('.status');
         const ipEl = card.querySelector('.card-ip');
-        const logEl = card.querySelector('.card-log');
         card.querySelector('.delete-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             deleteFriend(e, user.mac);
         });
         friendsList.appendChild(card);
 
-        // Resolve reachability and IP in one scan; update status light and show IP under name
+        // Resolve reachability and IP in one scan; update status light and show IP under name; log to debug panel
         if (window.pywebview && window.pywebview.api && window.pywebview.api.get_reachability_and_ip) {
             try {
+                appendDebugLog(user.name, 'Checking network for MAC ' + user.mac + '…', 'info');
                 const result = await pywebview.api.get_reachability_and_ip(user.mac, user.name);
                 if (statusEl.parentNode) {
                     statusEl.className = 'status ' + (result.reachable ? 'online' : 'offline');
@@ -192,9 +229,8 @@ async function loadFriends() {
                         ipEl.style.display = 'none';
                     }
                 }
-                if (logEl && logEl.parentNode && result.diagnostic) {
-                    logEl.textContent = result.diagnostic;
-                    logEl.className = 'card-log ' + (result.reachable ? 'card-log-ok' : 'card-log-fail');
+                if (result.diagnostic) {
+                    appendDebugLog(user.name, result.diagnostic, result.reachable ? 'ok' : 'fail');
                 }
             } catch (err) {
                 if (statusEl.parentNode) {
@@ -202,16 +238,12 @@ async function loadFriends() {
                     statusEl.title = 'Check failed';
                 }
                 if (ipEl) ipEl.style.display = 'none';
-                if (logEl) {
-                    logEl.textContent = 'Check failed: ' + (err.message || 'error');
-                    logEl.className = 'card-log card-log-fail';
-                }
+                appendDebugLog(user.name, 'Check failed: ' + (err.message || 'error'), 'fail');
             }
         } else {
             statusEl.className = 'status offline';
             statusEl.title = 'Unknown';
             if (ipEl) ipEl.style.display = 'none';
-            if (logEl) logEl.className = 'card-log card-log-fail';
         }
     }
 }

@@ -149,8 +149,8 @@ class Bridge:
             return {"reachable": True, "ip": "127.0.0.1", "diagnostic": msg}
         ip = self.engine.scan_network(mac, name or "")
         if ip:
-            self.update_user_ip(mac, ip)
-            msg = f"Found at {ip}. Ready to ping."
+            self.update_user_ip(mac, ip)  # save IP so we can ping without rescanning
+            msg = f"Found at {ip} and saved. Ready to ping."
             self.update_user_diagnostic(mac, msg)
             return {"reachable": True, "ip": ip, "diagnostic": msg}
         msg = (
@@ -190,7 +190,7 @@ class Bridge:
         if stored_ip:
             try:
                 self._send_ping(stored_ip)
-                msg = f"Ping sent to {stored_ip}. If they didn't get it: their app may be closed or their firewall blocking UDP 5005."
+                msg = f"Ping sent to {stored_ip} (saved IP). If they didn't get it: their app may be closed or their firewall blocking UDP 5005."
                 self.update_user_diagnostic(mac, msg)
                 return {"success": True, "diagnostic": msg}
             except Exception as e:
@@ -200,10 +200,10 @@ class Bridge:
         # 2) Resolve MAC → IP (MAC is only lookup key), then save IP and send ping to that IP
         target_ip = self.engine.scan_network(mac, name or "")
         if target_ip:
-            self.update_user_ip(mac, target_ip)
+            self.update_user_ip(mac, target_ip)  # save IP for next time
             try:
                 self._send_ping(target_ip)
-                msg = f"Ping sent to {target_ip}. If they didn't get it: their app may be closed or their firewall blocking UDP 5005."
+                msg = f"Ping sent to {target_ip} (IP saved). If they didn't get it: their app may be closed or their firewall blocking UDP 5005."
                 self.update_user_diagnostic(mac, msg)
                 return {"success": True, "diagnostic": msg}
             except Exception as e:
