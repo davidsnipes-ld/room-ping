@@ -95,18 +95,26 @@ async function pingFriend(mac, name) {
 }
 
 async function saveFriend() {
-    const name = document.getElementById('new-name').value;
-    const mac = document.getElementById('new-mac').value;
+    const name = document.getElementById('new-name').value.trim();
+    const mac = document.getElementById('new-mac').value.trim();
 
-    if (name && mac) {
-        await pywebview.api.add_user({"name": name, "mac": mac});
-        document.getElementById('new-name').value = '';
-        document.getElementById('new-mac').value = '';
-        closeModal();
-        loadFriends(); 
-    } else {
-        alert("Please fill in both fields!");
+    if (!name || !mac) {
+        alert("Please fill in both name and MAC address.");
+        return;
     }
+    const result = await pywebview.api.add_user({"name": name, "mac": mac});
+    if (result && result.status === 'error') {
+        alert(result.message || "Could not add roommate.");
+        return;
+    }
+    document.getElementById('new-name').value = '';
+    document.getElementById('new-mac').value = '';
+    closeModal();
+    showToast("Added. Finding their IP on the network…", "success");
+    if (window.pywebview.api.get_reachability_and_ip) {
+        await pywebview.api.get_reachability_and_ip(mac, name);
+    }
+    await loadFriends();
 }
 
 async function deleteFriend(event, mac) {

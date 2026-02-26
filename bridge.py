@@ -69,12 +69,35 @@ class Bridge:
                 return u
         return None
 
+    def _looks_like_ip(self, s):
+        """True if s looks like an IP address (so we don't store IP in the MAC field)."""
+        if not s or not isinstance(s, str):
+            return False
+        s = s.strip()
+        parts = s.split(".")
+        if len(parts) != 4:
+            return False
+        try:
+            return all(0 <= int(p) <= 255 for p in parts)
+        except ValueError:
+            return False
+
     def add_user(self, user_data):
+        """Add roommate by name + MAC only. Reject if MAC field looks like an IP; we resolve IP from MAC."""
+        mac = (user_data.get("mac") or "").strip()
+        name = (user_data.get("name") or "").strip()
+        if self._looks_like_ip(mac):
+            return {
+                "status": "error",
+                "message": "Enter the device's MAC address (e.g. 50:eb:f6:7f:bf:8d), not the IP. We'll find the IP from the MAC when you're on the same network.",
+            }
+        if not name or not mac:
+            return {"status": "error", "message": "Name and MAC address are required."}
         settings = self.get_settings()
-        if 'users' not in settings:
-            settings['users'] = []
-        settings['users'].append(dict(user_data))  # name, mac; ip filled when we resolve
-        with open(self.settings_file, 'w') as f:
+        if "users" not in settings:
+            settings["users"] = []
+        settings["users"].append({"name": name, "mac": mac})  # ip filled when we resolve
+        with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=4)
         return {"status": "success"}
 
