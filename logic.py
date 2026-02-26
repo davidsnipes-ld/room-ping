@@ -140,7 +140,7 @@ class NetworkEngine:
         return None
 
     def scan_network(self, target_mac, target_name):
-        """Resolve target_mac to an IP on the local LAN (broadcast + ARP, then fallback direct pings)."""
+        """Resolve target_mac to an IP on the local LAN. MAC is only used to look up IP (ARP); returns IP address or None. No packet is ever sent to a MAC."""
         if not target_mac:
             return None
         my_mac = self.get_my_mac().lower()

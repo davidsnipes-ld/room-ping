@@ -79,7 +79,7 @@ class Bridge:
         return {"status": "success"}
 
     def update_user_ip(self, mac, ip):
-        """Store or update the last-known IP for this MAC. Called whenever we resolve MAC → IP."""
+        """Store or update the last-known IP for this MAC. MAC is only the lookup key; we hold the IP for sending pings."""
         if not mac or not ip:
             return
         settings = self.get_settings()
@@ -109,11 +109,12 @@ class Bridge:
         return {"reachable": ip is not None, "ip": ip}
 
     def _send_ping(self, target_ip):
+        """Send the ping to an IP address only. We never send to a MAC; MAC is only used to find the IP."""
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.sendto(b"PING", (target_ip, DEFAULT_PORT))
 
     def ping_user(self, mac, name):
-        """Send ping. Uses stored IP when available; otherwise resolves MAC → IP and saves it."""
+        """Ping is always sent to an IP. MAC is only the signal to look up (or recall) that IP. Uses stored IP if we have it, else resolves MAC → IP and saves it."""
         net = self.engine.get_my_network_info()
         my_mac = self.engine.get_my_mac().lower()
         my_hostname = socket.gethostname().lower()
@@ -131,7 +132,7 @@ class Bridge:
         user = self._find_user_by_mac(settings, mac)
         stored_ip = (user or {}).get("ip") if user else None
 
-        # 1) Try stored IP first (fast; works when DHCP hasn't changed)
+        # 1) Send to stored IP if we have it (ping always goes to IP, never to MAC)
         if stored_ip:
             try:
                 self._send_ping(stored_ip)
@@ -139,7 +140,7 @@ class Bridge:
             except Exception:
                 pass
 
-        # 2) Resolve MAC → IP (updates stored IP when found)
+        # 2) Resolve MAC → IP (MAC is only lookup key), then save IP and send ping to that IP
         target_ip = self.engine.scan_network(mac, name or "")
         if target_ip:
             self.update_user_ip(mac, target_ip)
