@@ -83,6 +83,12 @@ async function pingFriend(mac, name) {
     if (window.pywebview && window.pywebview.api) {
         const result = await pywebview.api.ping_user(mac, name);
         const ok = result && (result.success === true);
+        const card = Array.from(document.querySelectorAll('.card')).find(c => c.dataset.mac === mac);
+        const logEl = card ? card.querySelector('.card-log') : null;
+        if (result && result.diagnostic && logEl) {
+            logEl.textContent = result.diagnostic;
+            logEl.className = 'card-log ' + (ok ? 'card-log-ok' : 'card-log-fail');
+        }
         if (ok) {
             showToast(`Ping sent to ${name}!`, "success");
         } else {
@@ -139,17 +145,20 @@ async function loadFriends() {
     for (const user of users) {
         const card = document.createElement('div');
         card.className = 'card';
+        card.dataset.mac = user.mac;
         card.addEventListener('click', (e) => {
             if (e.target.closest('.delete-btn')) return;
             pingFriend(user.mac, user.name);
         });
         const storedIp = user.ip ? ('IP: ' + user.ip) : '';
+        const logText = user.last_check || 'Checking…';
         card.innerHTML = `
     <div class="status unknown" title="Checking..."></div>
     <div class="info">
         <h3>${user.name}</h3>
         <p class="card-mac">${user.mac}</p>
         <p class="card-ip" style="${storedIp ? '' : 'display:none;'}">${storedIp}</p>
+        <p class="card-log" title="What happened when we looked for this device">${logText}</p>
     </div>
     <div class="card-actions">
         <button class="ping-btn" type="button">PING</button>
@@ -158,6 +167,7 @@ async function loadFriends() {
 `;
         const statusEl = card.querySelector('.status');
         const ipEl = card.querySelector('.card-ip');
+        const logEl = card.querySelector('.card-log');
         card.querySelector('.delete-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             deleteFriend(e, user.mac);
@@ -182,17 +192,26 @@ async function loadFriends() {
                         ipEl.style.display = 'none';
                     }
                 }
+                if (logEl && logEl.parentNode && result.diagnostic) {
+                    logEl.textContent = result.diagnostic;
+                    logEl.className = 'card-log ' + (result.reachable ? 'card-log-ok' : 'card-log-fail');
+                }
             } catch (err) {
                 if (statusEl.parentNode) {
                     statusEl.className = 'status offline';
                     statusEl.title = 'Check failed';
                 }
                 if (ipEl) ipEl.style.display = 'none';
+                if (logEl) {
+                    logEl.textContent = 'Check failed: ' + (err.message || 'error');
+                    logEl.className = 'card-log card-log-fail';
+                }
             }
         } else {
             statusEl.className = 'status offline';
             statusEl.title = 'Unknown';
             if (ipEl) ipEl.style.display = 'none';
+            if (logEl) logEl.className = 'card-log card-log-fail';
         }
     }
 }

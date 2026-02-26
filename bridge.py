@@ -69,6 +69,11 @@ class Bridge:
                 return u
         return None
 
+    def _ensure_user_ip_slots(self, settings):
+        """Ensure every user has an 'ip' key so settings.json always shows name, mac, ip."""
+        for u in settings.get("users", []):
+            u.setdefault("ip", "")
+
     def _looks_like_ip(self, s):
         """True if s looks like an IP address (so we don't store IP in the MAC field)."""
         if not s or not isinstance(s, str):
@@ -96,7 +101,8 @@ class Bridge:
         settings = self.get_settings()
         if "users" not in settings:
             settings["users"] = []
-        settings["users"].append({"name": name, "mac": mac})  # ip filled when we resolve
+        settings["users"].append({"name": name, "mac": mac, "ip": ""})
+        self._ensure_user_ip_slots(settings)
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=4)
         return {"status": "success"}
@@ -109,6 +115,19 @@ class Bridge:
         user = self._find_user_by_mac(settings, mac)
         if user is not None:
             user["ip"] = ip
+            self._ensure_user_ip_slots(settings)
+            with open(self.settings_file, "w") as f:
+                json.dump(settings, f, indent=4)
+
+    def update_user_diagnostic(self, mac, message):
+        """Store a short status message for this roommate so the user knows where things stand."""
+        if not mac:
+            return
+        settings = self.get_settings()
+        user = self._find_user_by_mac(settings, mac)
+        if user is not None:
+            user["last_check"] = message
+            self._ensure_user_ip_slots(settings)
             with open(self.settings_file, "w") as f:
                 json.dump(settings, f, indent=4)
 
@@ -118,18 +137,28 @@ class Bridge:
         return result["reachable"]
 
     def get_reachability_and_ip(self, mac, name):
-        """Run one network scan; return reachable (bool) and ip (str or None). Saves IP when found."""
+        """Run one network scan; return reachable, ip, and a diagnostic message. Saves IP and message when done."""
         if not mac:
-            return {"reachable": False, "ip": None}
+            return {"reachable": False, "ip": None, "diagnostic": "No MAC provided."}
         my_mac = self.engine.get_my_mac().lower()
         mac_clean = self._mac_norm(mac)
         if mac_clean == my_mac or (name and name.lower() in socket.gethostname().lower()):
             self.update_user_ip(mac, "127.0.0.1")
-            return {"reachable": True, "ip": "127.0.0.1"}
+            msg = "This device (you)."
+            self.update_user_diagnostic(mac, msg)
+            return {"reachable": True, "ip": "127.0.0.1", "diagnostic": msg}
         ip = self.engine.scan_network(mac, name or "")
         if ip:
             self.update_user_ip(mac, ip)
-        return {"reachable": ip is not None, "ip": ip}
+            msg = f"Found at {ip}. Ready to ping."
+            self.update_user_diagnostic(mac, msg)
+            return {"reachable": True, "ip": ip, "diagnostic": msg}
+        msg = (
+            "Could not find on network. Possible: different WiFi/subnet, their device off, "
+            "or their firewall blocking discovery (ping)."
+        )
+        self.update_user_diagnostic(mac, msg)
+        return {"reachable": False, "ip": None, "diagnostic": msg}
 
     def _send_ping(self, target_ip):
         """Send the ping to an IP address only. We never send to a MAC; MAC is only used to find the IP."""
@@ -147,9 +176,11 @@ class Bridge:
             self.update_user_ip(mac, "127.0.0.1")
             try:
                 self._send_ping("127.0.0.1")
-                return {"success": True}
+                self.update_user_diagnostic(mac, "Ping sent (self).")
+                return {"success": True, "diagnostic": "Ping sent (self)."}
             except Exception as e:
-                return {"success": False, "your_ip": "", "subnets": [], "hint": str(e)}
+                self.update_user_diagnostic(mac, f"Send failed: {e}. Check your firewall.")
+                return {"success": False, "your_ip": "", "subnets": [], "hint": str(e), "diagnostic": f"Send failed: {e}. Check your firewall."}
 
         settings = self.get_settings()
         user = self._find_user_by_mac(settings, mac)
@@ -159,8 +190,11 @@ class Bridge:
         if stored_ip:
             try:
                 self._send_ping(stored_ip)
-                return {"success": True}
-            except Exception:
+                msg = f"Ping sent to {stored_ip}. If they didn't get it: their app may be closed or their firewall blocking UDP 5005."
+                self.update_user_diagnostic(mac, msg)
+                return {"success": True, "diagnostic": msg}
+            except Exception as e:
+                self.update_user_diagnostic(mac, f"Found at {stored_ip} but send failed. Check your firewall (outbound UDP 5005).")
                 pass
 
         # 2) Resolve MAC → IP (MAC is only lookup key), then save IP and send ping to that IP
@@ -169,20 +203,28 @@ class Bridge:
             self.update_user_ip(mac, target_ip)
             try:
                 self._send_ping(target_ip)
-                return {"success": True}
+                msg = f"Ping sent to {target_ip}. If they didn't get it: their app may be closed or their firewall blocking UDP 5005."
+                self.update_user_diagnostic(mac, msg)
+                return {"success": True, "diagnostic": msg}
             except Exception as e:
+                msg = f"Found at {target_ip} but send failed. Check your firewall (outbound UDP 5005)."
+                self.update_user_diagnostic(mac, msg)
                 return {
                     "success": False,
                     "your_ip": net.get("ips", [""])[0] if net.get("ips") else "",
                     "subnets": net.get("subnets", []),
                     "hint": str(e),
+                    "diagnostic": msg,
                 }
 
+        msg = "Could not find on network. Same WiFi? Their device on? Their firewall may block discovery (ping)."
+        self.update_user_diagnostic(mac, msg)
         return {
             "success": False,
             "your_ip": net.get("ips", [""])[0] if net.get("ips") else "",
             "subnets": net.get("subnets", []),
-            "hint": "Could not resolve their IP from MAC. Same WiFi? Same subnet? Their firewall may block ping.",
+            "hint": msg,
+            "diagnostic": msg,
         }
     
     def get_my_info(self):
@@ -211,6 +253,7 @@ class Bridge:
         settings = self.get_settings()
         if 'users' in settings:
             settings['users'] = [u for u in settings['users'] if u['mac'] != mac]
+            self._ensure_user_ip_slots(settings)
             with open(self.settings_file, 'w') as f:
                 json.dump(settings, f, indent=4)
         return {"status": "success"}
