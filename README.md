@@ -18,9 +18,11 @@
    - **macOS:** `RoomPingPro-macOS.zip` → unzip and open **RoomPingPro.app**
    - **Linux:** **`RoomPingPro-Linux.zip`** → unzip, then in a terminal run `./RoomPingPro` (if needed, run `chmod +x RoomPingPro` first)
 
-**Don’t see a Releases page or any zip files?** A release has to be published first. Ask the repo maintainer to create one (see [Creating new releases](#creating-new-releases-for-repo-maintainers) below), or run from source with Python.
+**Important:** The zip files (including **RoomPingPro-Linux.zip**) are **not** in the repo or in a `dist/` folder. They are created by GitHub Actions and appear **only on the Releases page** (`https://github.com/OWNER/REPO/releases`) after the maintainer publishes a release (by pushing a version tag). If there is no release yet, you won’t see any zips.
 
-No Python or other install needed. Your roommates list is stored next to the app and kept between runs.
+**Don’t see a Releases page or any zip files?** The maintainer needs to create a release first (see [Creating new releases](#creating-new-releases-for-repo-maintainers) below). Until then, **Linux users can run from source** (see below) or build the Linux binary on a Linux machine: run `chmod +x build-linux.sh && ./build-linux.sh` — the binary will be in `dist/RoomPingPro`.
+
+No Python or other install needed when using a release zip. Your roommates list is stored next to the app and kept between runs.
 
 **Windows:** If the window is blank, install [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (many PCs already have it).
 

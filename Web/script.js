@@ -1,16 +1,12 @@
 // --- APP STATE ---
 let audioEnabled = true;
 
-// --- INITIALIZATION ---
-// This runs ONCE when the bridge is ready
-window.addEventListener('pywebviewready', initApp);
-
-async function initApp() {
-    console.log('Bridge found! Starting initialization...');
-    await fetchProfile(0);
-    await loadFriends();
-    // Attach click handlers in JS (some webviews block inline onclick)
-    const byId = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+// Attach UI click handlers as soon as DOM is ready (so Add Roommate / Settings always work)
+function attachClickHandlers() {
+    const byId = (id, fn) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', fn);
+    };
     byId('btn-add-roommate', openModal);
     byId('btn-settings', openSettings);
     byId('btn-modal-cancel', closeModal);
@@ -18,6 +14,15 @@ async function initApp() {
     byId('btn-settings-close', closeSettings);
     byId('btn-test-ping', testMyPing);
     byId('btn-copy-mac', copyMyMac);
+}
+
+// --- INITIALIZATION ---
+window.addEventListener('pywebviewready', initApp);
+
+async function initApp() {
+    console.log('Bridge found! Starting initialization...');
+    await fetchProfile(0);
+    await loadFriends();
 }
 
 async function fetchProfile(retries) {
@@ -160,6 +165,9 @@ window.showAlert = function(senderIp) {
         }
     }
 }
+
+// Attach button handlers immediately so Add Roommate / Settings work in all webview environments
+attachClickHandlers();
 
 if (window.pywebview) {
     initApp();
