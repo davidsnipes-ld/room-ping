@@ -7,8 +7,17 @@ window.addEventListener('pywebviewready', initApp);
 
 async function initApp() {
     console.log('Bridge found! Starting initialization...');
-    await fetchProfile(0); // Try to get profile with 0 retries initially
-    loadFriends();         // Load the roommate list
+    await fetchProfile(0);
+    await loadFriends();
+    // Attach click handlers in JS (some webviews block inline onclick)
+    const byId = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+    byId('btn-add-roommate', openModal);
+    byId('btn-settings', openSettings);
+    byId('btn-modal-cancel', closeModal);
+    byId('btn-modal-add', saveFriend);
+    byId('btn-settings-close', closeSettings);
+    byId('btn-test-ping', testMyPing);
+    byId('btn-copy-mac', copyMyMac);
 }
 
 async function fetchProfile(retries) {
@@ -92,7 +101,10 @@ async function loadFriends() {
     users.forEach(user => {
         const card = document.createElement('div');
         card.className = 'card';
-        card.onclick = () => pingFriend(user.mac, user.name);
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('.delete-btn')) return;
+            pingFriend(user.mac, user.name);
+        });
         card.innerHTML = `
     <div class="status online"></div>
     <div class="info">
@@ -100,10 +112,14 @@ async function loadFriends() {
         <p>${user.mac}</p>
     </div>
     <div class="card-actions">
-        <button class="ping-btn">PING</button>
-        <button class="delete-btn" onclick="deleteFriend(event, '${user.mac}')">🗑️</button>
+        <button class="ping-btn" type="button">PING</button>
+        <button class="delete-btn" type="button">🗑️</button>
     </div>
 `;
+        card.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteFriend(e, user.mac);
+        });
         friendsList.appendChild(card);
     });
 }

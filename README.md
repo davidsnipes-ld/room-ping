@@ -6,15 +6,25 @@
 
 ## Download and run (no Python required)
 
-1. Open the **Releases** page for this repo on GitHub.
-2. Download the zip for your system:
+### Where to get the builds
+
+1. Open this repo on GitHub.
+2. Go to the **Releases** page:
+   - Click the **Releases** link on the right side of the repo (under “About”), **or**
+   - Go directly to: **`https://github.com/OWNER/REPO/releases`** (replace `OWNER` and `REPO` with this repo’s owner and name, e.g. `davidsnipes/AlertNotification`).
+3. Open the **latest release** (e.g. v1.0.0).
+4. In **Assets**, download the zip for your system:
    - **Windows:** `RoomPingPro-Windows.zip` → unzip and double‑click **RoomPingPro.exe**
    - **macOS:** `RoomPingPro-macOS.zip` → unzip and open **RoomPingPro.app**
-   - **Linux:** `RoomPingPro-Linux.zip` → unzip, then run `./RoomPingPro` (you may need to `chmod +x RoomPingPro` first)
+   - **Linux:** **`RoomPingPro-Linux.zip`** → unzip, then in a terminal run `./RoomPingPro` (if needed, run `chmod +x RoomPingPro` first)
+
+**Don’t see a Releases page or any zip files?** A release has to be published first. Ask the repo maintainer to create one (see [Creating new releases](#creating-new-releases-for-repo-maintainers) below), or run from source with Python.
 
 No Python or other install needed. Your roommates list is stored next to the app and kept between runs.
 
 **Windows:** If the window is blank, install [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (many PCs already have it).
+
+**Linux users:** The file you want is **RoomPingPro-Linux.zip** in the latest release’s **Assets** (not the green “Code” source zip). If there is no release yet, use [Run from source](#run-from-source-if-you-have-python) below.
 
 ### Double‑click, pin to taskbar/dock, open at startup
 
