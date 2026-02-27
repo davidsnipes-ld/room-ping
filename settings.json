@@ -26,5 +26,6 @@
             "ip": ""
         }
     ],
-    "display_name": "David S."
+    "display_name": "David S.",
+    "alerts_pinned": true
 }
