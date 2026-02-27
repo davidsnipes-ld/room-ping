@@ -15,6 +15,7 @@ _WEB_INDEX = os.path.join(_BASE_DIR, "Web", "index.html")
 
 def start_logic():
     api = Bridge()
+    api.start_discovery()
     engine = NetworkEngine()
 
     window = webview.create_window(

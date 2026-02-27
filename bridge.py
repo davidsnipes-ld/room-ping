@@ -4,9 +4,11 @@ import re
 import shutil
 import socket
 import sys
+import threading
+import time
 import urllib.request
 import webbrowser
-from logic import NetworkEngine, DEFAULT_PORT
+from logic import NetworkEngine, DEFAULT_PORT, DISCOVERY_PORT, BEACON_INTERVAL, PEER_STALE_SECONDS
 
 def _project_dir():
     """Project root when running from source; exe/app folder when built (so settings persist)."""
@@ -40,6 +42,8 @@ class Bridge:
     def __init__(self):
         self.engine = NetworkEngine()
         self.settings_file = os.path.join(_project_dir(), "settings.json")
+        self._discovered_peers = {}  # mac -> {ip, name, mac, port, last_seen}
+        self._discovery_lock = threading.Lock()
         self._ensure_settings_exists()
 
     def _ensure_settings_exists(self):
@@ -51,13 +55,16 @@ class Bridge:
             shutil.copy(example, self.settings_file)
         else:
             with open(self.settings_file, "w") as f:
-                json.dump({"users": []}, f, indent=4)
+                json.dump({"users": [], "display_name": ""}, f, indent=4)
 
     def get_settings(self):
         if os.path.exists(self.settings_file):
             with open(self.settings_file, "r") as f:
-                return json.load(f)
-        return {"users": []}
+                s = json.load(f)
+                s.setdefault("display_name", "")
+                s.setdefault("users", [])
+                return s
+        return {"users": [], "display_name": ""}
 
     def _mac_norm(self, mac):
         return (mac or "").lower().replace("-", ":")
@@ -290,12 +297,14 @@ class Bridge:
     
     def get_my_info(self):
         try:
-            name = str(socket.gethostname())
+            settings = self.get_settings()
+            display_name = (settings.get("display_name") or "").strip()
+            if not display_name:
+                display_name = str(socket.gethostname())
             mac = str(self.engine.get_my_mac())
             net = self.engine.get_my_network_info()
-            print(f"Sending Profile: {name} | {mac}")  # Check your terminal for this!
             return {
-                "name": name,
+                "name": display_name,
                 "mac": mac,
                 "ips": net.get("ips", []),
                 "subnets": net.get("subnets", []),
@@ -304,6 +313,63 @@ class Bridge:
         except Exception as e:
             print(f"Profile Error: {e}")
             return {"name": "Unknown Device", "mac": "00:00:00:00:00:00", "ips": [], "subnets": [], "port": 5005}
+
+    def set_display_name(self, name):
+        """Set the display name shown to others on the network (beacon)."""
+        name = (name or "").strip()
+        settings = self.get_settings()
+        settings["display_name"] = name
+        with open(self.settings_file, "w") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "success"}
+
+    def start_discovery(self):
+        """Start beacon sender and listener threads so we discover other RoomPing Pro users and advertise ourselves."""
+        my_mac = self.engine.get_my_mac().lower()
+
+        def on_beacon(peer):
+            with self._discovery_lock:
+                self._discovered_peers[peer["mac"]] = {**peer, "last_seen": time.time()}
+
+        def beacon_listener():
+            self.engine.listen_beacon_forever(on_beacon)
+
+        def beacon_sender_loop():
+            while True:
+                try:
+                    settings = self.get_settings()
+                    display_name = (settings.get("display_name") or "").strip() or socket.gethostname()
+                    mac = self.engine.get_my_mac()
+                    net = self.engine.get_my_network_info()
+                    ips = net.get("ips") or []
+                    my_ip = ips[0] if ips else ""
+                    self.engine.send_beacon_once(display_name, mac, my_ip, net.get("port", DEFAULT_PORT))
+                except Exception as e:
+                    print(f"Beacon sender error: {e}")
+                time.sleep(BEACON_INTERVAL)
+
+        threading.Thread(target=beacon_listener, daemon=True).start()
+        threading.Thread(target=beacon_sender_loop, daemon=True).start()
+
+    def get_discovered_peers(self):
+        """Return list of peers seen via beacon. Each has ip, name, mac, port, last_seen, online (bool). Excludes self."""
+        my_mac = self.engine.get_my_mac().lower().replace("-", ":")
+        now = time.time()
+        with self._discovery_lock:
+            out = []
+            for mac, p in list(self._discovered_peers.items()):
+                if mac == my_mac:
+                    continue
+                online = (now - p.get("last_seen", 0)) <= PEER_STALE_SECONDS
+                out.append({
+                    "ip": p.get("ip", ""),
+                    "name": p.get("name", "Unknown"),
+                    "mac": p.get("mac", mac),
+                    "port": p.get("port", DEFAULT_PORT),
+                    "last_seen": p.get("last_seen", 0),
+                    "online": online,
+                })
+        return sorted(out, key=lambda x: (not x["online"], (x["name"] or "").lower()))
 
     def get_my_network_info(self):
         """Return this machine's IP(s) and subnet(s) for diagnostics (goal post for sender/receiver)."""

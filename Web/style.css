@@ -120,11 +120,99 @@ header span { color: #ff4b2b; }
     filter: grayscale(0);
 }
 
-.app-body main {
+.main-scroll {
     flex: 1;
     min-height: 0;
     padding: 20px;
     overflow-y: auto;
+}
+
+.section-title {
+    margin: 0 0 6px 0;
+    font-size: 14px;
+    color: #ff4b2b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.section-hint {
+    margin: 0 0 12px 0;
+    font-size: 11px;
+    color: #666;
+}
+
+.network-section {
+    margin-bottom: 20px;
+}
+
+.discovered-card {
+    background: #252525;
+    border-radius: 10px;
+    padding: 12px 15px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.discovered-card .status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.discovered-card .info {
+    flex: 1;
+    min-width: 0;
+}
+
+.discovered-card .info h3 { margin: 0; font-size: 15px; }
+.discovered-card .info p { margin: 2px 0 0; font-size: 11px; color: #888; }
+
+.add-friend-btn {
+    background: #333;
+    border: 1px solid #555;
+    color: #aaa;
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.add-friend-btn:hover {
+    background: #ff4b2b;
+    color: white;
+    border-color: #ff4b2b;
+}
+
+.add-friend-btn.is-friend {
+    background: transparent;
+    color: #4caf50;
+    border-color: #4caf50;
+    cursor: default;
+}
+
+.setting-item-block {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.setting-item-block input[type="text"] {
+    margin-top: 6px;
+    width: 100%;
+    padding: 8px 10px;
+    background: #121212;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 6px;
+}
+
+.setting-hint {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: #888;
 }
 
 .card {

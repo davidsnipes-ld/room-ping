@@ -215,6 +215,51 @@ function attachConsoleResizeHandle() {
 // --- INITIALIZATION ---
 window.addEventListener('pywebviewready', initApp);
 
+async function refreshDiscovered() {
+    if (!window.pywebview?.api?.get_discovered_peers) return;
+    try {
+        const peers = await pywebview.api.get_discovered_peers();
+        const settings = await pywebview.api.get_settings();
+        const friendMacs = new Set((settings.users || []).map(u => (u.mac || '').toLowerCase().replace(/-/g, ':')));
+        const listEl = document.getElementById('discovered-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        for (const peer of peers) {
+            const macNorm = (peer.mac || '').toLowerCase().replace(/-/g, ':');
+            const isFriend = friendMacs.has(macNorm);
+            const card = document.createElement('div');
+            card.className = 'discovered-card';
+            card.innerHTML = `
+                <div class="status ${peer.online ? 'online' : 'offline'}" title="${peer.online ? 'Online' : 'Offline'}"></div>
+                <div class="info">
+                    <h3>${escapeHtml(peer.name)}</h3>
+                    <p>${escapeHtml(peer.mac)}${peer.ip ? ' · ' + escapeHtml(peer.ip) : ''}</p>
+                </div>
+                ${isFriend ? '<span class="add-friend-btn is-friend">Friend</span>' : '<button type="button" class="add-friend-btn">Add as friend</button>'}
+            `;
+            if (!isFriend) {
+                const btn = card.querySelector('.add-friend-btn');
+                btn.addEventListener('click', (e) => { e.stopPropagation(); addFriendFromDiscovery(peer); });
+            }
+            listEl.appendChild(card);
+        }
+        if (peers.length === 0) {
+            listEl.innerHTML = '<p class="section-hint" style="margin:0;">No other RoomPing Pro users on the network yet.</p>';
+        }
+    } catch (e) {}
+}
+
+async function addFriendFromDiscovery(peer) {
+    const result = await pywebview.api.add_user({ name: peer.name, mac: peer.mac, ip: peer.ip || '' });
+    if (result && result.status === 'error') {
+        showToast(result.message || 'Could not add friend.', 'error');
+        return;
+    }
+    showToast(`Added ${peer.name} as a friend.`, 'success');
+    await loadFriends();
+    refreshDiscovered();
+}
+
 async function initApp() {
     try {
         if (localStorage.getItem('roomping-firewall-banner-dismissed') === '1') {
@@ -228,7 +273,9 @@ async function initApp() {
     appendDebugLog('', 'App starting…', 'info');
     await fetchProfile(0);
     await loadFriends();
-    appendDebugLog('', 'Ready. Use Console to see connection and ping details.', 'info');
+    refreshDiscovered();
+    setInterval(refreshDiscovered, 3000);
+    appendDebugLog('', 'Ready. Discovery and friends list active.', 'info');
 }
 
 async function fetchProfile(retries) {
@@ -330,7 +377,7 @@ async function loadFriends() {
 
     const users = settings.users || [];
     if (users.length === 0) {
-        friendsList.innerHTML = '<p style="text-align:center; color:#666; margin-top:20px;">No roommates added yet.</p>';
+        friendsList.innerHTML = '<p style="text-align:center; color:#666; margin-top:20px;">No friends yet. Add people from the network above or use + Add Roommate to add manually.</p>';
         return;
     }
 
@@ -416,8 +463,29 @@ function openSettings() {
     document.getElementById('settings-modal').style.display = 'flex';
     const cb = document.getElementById('console-enabled-toggle');
     if (cb) cb.checked = isConsoleEnabled();
+    loadSettingsIntoModal();
 }
-function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
+
+async function closeSettings() {
+    await saveDisplayNameFromModal();
+    document.getElementById('settings-modal').style.display = 'none';
+}
+
+async function loadSettingsIntoModal() {
+    try {
+        const settings = await pywebview.api.get_settings();
+        const displayInput = document.getElementById('display-name-input');
+        if (displayInput) displayInput.value = (settings.display_name || '').trim();
+    } catch (e) {}
+}
+
+async function saveDisplayNameFromModal() {
+    const displayInput = document.getElementById('display-name-input');
+    if (!displayInput || !window.pywebview?.api?.set_display_name) return;
+    const name = displayInput.value.trim();
+    await pywebview.api.set_display_name(name);
+    await fetchProfile(0);
+}
 
 function toggleAudio() {
     audioEnabled = document.getElementById('audio-toggle').checked;

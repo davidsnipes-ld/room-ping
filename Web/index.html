@@ -8,7 +8,7 @@
 <body>
     <div class="app-container">
         <div id="firewall-banner" class="firewall-banner" role="status">
-            <span>When your firewall asks to allow this app, choose <strong>Allow</strong> (Private networks) so pings work. If you already blocked it, add RoomPingPro1 in Windows Security → Firewall → Allow an app.</span>
+            <span>When your firewall asks to allow this app, choose <strong>Allow</strong> (Private networks) so pings and discovery work. If you already blocked it, add RoomPingPro1 in Windows Security → Firewall → Allow an app.</span>
             <button type="button" class="firewall-dismiss" id="btn-dismiss-firewall" aria-label="Dismiss">×</button>
         </div>
         <div class="app-body">
@@ -37,7 +37,17 @@
             </div>
         </header>
     
-        <main id="friends-list"></main>
+        <div class="main-scroll">
+            <section id="on-the-network" class="network-section">
+                <h3 class="section-title">On the network</h3>
+                <p class="section-hint">People running RoomPing Pro nearby. Add as friend to ping them easily next time.</p>
+                <div id="discovered-list"></div>
+            </section>
+            <section id="friends-section">
+                <h3 class="section-title">Friends</h3>
+                <div id="friends-list"></div>
+            </section>
+        </div>
     
         <footer>
             <button class="add-btn" type="button" id="btn-add-roommate">+ Add Roommate</button>
@@ -87,6 +97,11 @@
         <div id="settings-modal" class="modal-overlay" style="display:none;">
             <div class="modal">
                 <h2>Settings</h2>
+                <div class="setting-item setting-item-block">
+                    <label for="display-name-input">Display name</label>
+                    <input type="text" id="display-name-input" placeholder="e.g. Alex's laptop" title="How you appear when others discover you on the network">
+                    <p class="setting-hint">This is how others see you when they find you on the network.</p>
+                </div>
                 <div class="setting-item">
                     <label>Audio Alerts</label>
                     <input type="checkbox" id="audio-toggle" checked onchange="toggleAudio()">
@@ -96,7 +111,7 @@
                     <input type="checkbox" id="console-enabled-toggle" onchange="toggleConsoleEnabled()">
                 </div>
                 <div class="firewall-help">
-                    <strong>Pings not working?</strong> Allow this app in your firewall for <strong>Private</strong> networks (UDP port 5005). Windows: Security → Firewall → Allow an app. If you clicked Block by mistake, add RoomPingPro1 there and check Private.
+                    <strong>Pings or discovery not working?</strong> Allow this app for <strong>Private</strong> networks (UDP 5005 for pings, 5006 for discovery). Windows: Security → Firewall → Allow an app → add RoomPingPro1 and check Private.
                 </div>
                 <div class="setting-item">
                     <button type="button" class="save-btn" id="btn-check-updates" style="width:100%;">Check for updates</button>
