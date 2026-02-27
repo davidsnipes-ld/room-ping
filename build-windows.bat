@@ -1,4 +1,6 @@
 @echo off
+REM For maintainers: builds the self-contained Windows .exe.
+REM End users should download RoomPingPro-Windows.zip from the repo Releases page and double-click the .exe.
 cd /d "%~dp0"
 echo Building RoomPing Pro for Windows...
 echo.
@@ -21,6 +23,6 @@ if errorlevel 1 (
     exit /b 1
 )
 echo.
-echo Done. Application: dist\RoomPingPro.exe
+echo Done. Output: dist\RoomPingPro.exe (self-contained; users can double-click to run).
 echo.
 pause

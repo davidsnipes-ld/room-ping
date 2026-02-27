@@ -4,7 +4,9 @@
 
 ---
 
-## Download and run (no Python required)
+## Download and run (no Python, no terminal required)
+
+Each release zip is **self-contained**: unzip and run. No Python, no command line, no extra install (except WebView2 on Windows if your PC doesn’t have it).
 
 ### Where to get the builds
 
@@ -16,17 +18,14 @@
 4. In **Assets**, download the zip for your system:
    - **Windows:** `RoomPingPro-Windows.zip` → unzip and double‑click **RoomPingPro.exe**
    - **macOS:** `RoomPingPro-macOS.zip` → unzip and open **RoomPingPro.app**
-   - **Linux:** **`RoomPingPro-Linux.zip`** → unzip, then in a terminal run `./RoomPingPro` (if needed, run `chmod +x RoomPingPro` first)
+   - **Linux:** **`RoomPingPro-Linux.zip`** → unzip, then **double‑click RoomPingPro** in your file manager (no terminal needed). If it won’t run, right‑click the file → **Properties** → **Permissions** → check **Allow executing as program** (or run once: `chmod +x RoomPingPro` in a terminal).
 
-**Important:** The zip files (including **RoomPingPro-Linux.zip**) are **not** in the repo or in a `dist/` folder. They are created by GitHub Actions and appear **only on the Releases page** (`https://github.com/OWNER/REPO/releases`) after the maintainer publishes a release (by pushing a version tag). If there is no release yet, you won’t see any zips.
+The zip files are built by GitHub Actions and appear **only on the Releases page** after the maintainer publishes a release. If there is no release yet, see [Run from source](#run-from-source-if-you-have-python) or [Creating new releases](#creating-new-releases-for-repo-maintainers).
 
-**Don’t see a Releases page or any zip files?** The maintainer needs to create a release first (see [Creating new releases](#creating-new-releases-for-repo-maintainers) below). Until then, **Linux users can run from source** (see below) or build the Linux binary on a Linux machine: run `chmod +x build-linux.sh && ./build-linux.sh` — the binary will be in `dist/RoomPingPro`.
+Your roommates list is stored next to the app and kept between runs.
 
-No Python or other install needed when using a release zip. Your roommates list is stored next to the app and kept between runs.
-
-**Windows:** If the window is blank, install [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (many PCs already have it).
-
-**Linux users:** The file you want is **RoomPingPro-Linux.zip** in the latest release’s **Assets** (not the green “Code” source zip). If there is no release yet, use [Run from source](#run-from-source-if-you-have-python) below.
+**Windows:** If the app window is blank, install [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (many PCs already have it).  
+**Linux:** Download **RoomPingPro-Linux.zip** from the release **Assets** (not the "Code" source zip).
 
 ### Double‑click, pin to taskbar/dock, open at startup
 
@@ -34,11 +33,11 @@ The downloaded app is a normal executable you can use like any other:
 
 | What you want | Windows | macOS | Linux |
 |---------------|---------|--------|--------|
-| **Open the app** | Double‑click **RoomPingPro.exe** | Double‑click **RoomPingPro.app** | Run `./RoomPingPro` or double‑click it in your file manager |
-| **Pin to taskbar / dock** | Right‑click the .exe → **Pin to taskbar** (or drag it to the taskbar) | Drag **RoomPingPro.app** to the Dock | Add to favorites or use the app menu (see below) |
-| **Open at login / startup** | **Settings → Apps → Startup** → **Add** → browse to **RoomPingPro.exe** (or put a shortcut to it in the **Startup** folder) | **System Settings → General → Login Items** → **Add (+)** → choose **RoomPingPro.app** | Add **RoomPingPro** to **Startup Applications** (use the full path to the file, e.g. `/home/you/RoomPingPro`) |
+| **Open the app** | Double‑click **RoomPingPro.exe** | Double‑click **RoomPingPro.app** | Double‑click **RoomPingPro** in your file manager (or open it from there) |
+| **Pin to taskbar / dock** | Right‑click the .exe → **Pin to taskbar** (or drag to taskbar) | Drag **RoomPingPro.app** to the Dock | Pin the folder or add to favorites in your file manager |
+| **Open at login / startup** | **Settings → Apps → Startup** → Add **RoomPingPro.exe** (or put a shortcut in the **Startup** folder) | **System Settings → General → Login Items** → **Add (+)** → choose **RoomPingPro.app** | **Startup Applications** → Add and use the full path to **RoomPingPro** (e.g. `/home/you/Downloads/RoomPingPro`) |
 
-**Linux (optional):** To get a proper app menu entry and “Add to Startup,” copy the repo file **RoomPingPro.desktop** into the same folder as the **RoomPingPro** binary, edit the file and replace `/path/to` with the real folder path, then copy the edited file to `~/.local/share/applications/`. You can then launch from the app menu and add it to Startup Applications.
+**Linux (optional):** For an app menu entry and easier “Add to Startup,” copy **RoomPingPro.desktop** from the repo into the same folder as **RoomPingPro**, edit the file and replace `/path/to` with that folder's path, then copy the edited file to `~/.local/share/applications/`. You can then launch from the app menu.
 
 ---
 
@@ -107,6 +106,8 @@ The app uses **UDP port 5005**. Both sender and receiver must allow it. If the o
 
 ## Creating new releases (for repo maintainers)
 
+**End users** only download a zip from Releases and double‑click; they never run these steps. The following is for **maintainers** who build and publish the app.
+
 To build and publish new downloads so users don’t need Python:
 
 1. **Create a tag** (e.g. `v1.0.0`) and push it:
@@ -123,9 +124,9 @@ To build on your own machine:
 - **Windows:** Double‑click **build-windows.bat** or run it in Command Prompt. Output: **dist\\RoomPingPro.exe**  
   If you get "Access is denied" or "Could not install packages", the script uses a user install (no admin). If it still fails, close other programs using Python, or run Command Prompt as Administrator, or use a venv: `python -m venv venv` then `venv\\Scripts\\activate` then `pip install pyinstaller -r requirements.txt` and `python -m PyInstaller --noconfirm RoomPingPro.spec`.
 - **Linux:** Run `chmod +x build-linux.sh && ./build-linux.sh`. Output: **dist/RoomPingPro**
-- **macOS:** Run `pip install pyinstaller -r requirements.txt && pyinstaller --noconfirm RoomPingPro.spec`. Output: **dist/RoomPingPro.app**
+- **macOS:** Run **build-mac.sh** (e.g. `chmod +x build-mac.sh && ./build-mac.sh`). Output: **dist/RoomPingPro.app**
 
-You must build on each OS to get that OS’s executable (e.g. you get RoomPingPro.exe only when building on Windows).
+You must build on each OS to get that OS’s executable (e.g. you get RoomPingPro.exe only when building on Windows). Each output is self-contained; users unzip the release zip and double‑click to run.
 
 **Updates:** Edit **version.txt**: line 1 = app version (e.g. 1.0.0), line 2 = your GitHub repo (e.g. yourusername/AlertNotification). In the app, **Settings → Check for updates** opens the latest release page so users can download the new build. Bump line 1 when you release a new tag.
 
@@ -143,7 +144,7 @@ You must build on each OS to get that OS’s executable (e.g. you get RoomPingPr
 | `version.txt`        | Line 1: app version; line 2: GitHub owner/repo for update check |
 | `settings.example.json` | Template; copy to `settings.json` (auto-created if missing) |
 | `run.bat` / `run.sh` | One-click run from source (Windows / Mac–Linux) |
-| `build-windows.bat` / `build-linux.sh` | Build executable on Windows / Linux |
+| `build-windows.bat` / `build-linux.sh` / `build-mac.sh` | Build self-contained executable on Windows / Linux / macOS (for maintainers) |
 | `RoomPingPro.desktop` | Linux app menu launcher template |
 | `settings.json`      | Your roommates list (created automatically; in `.gitignore`) |
 
