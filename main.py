@@ -30,6 +30,7 @@ def start_logic():
         hidden=True,
         frameless=True,
         min_size=(160, 60),
+        easy_drag=False,
     )
     try:
         api.set_alerts_window(alerts_window)
