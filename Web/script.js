@@ -191,6 +191,13 @@ function attachClickHandlers() {
     byId('btn-console-clear', clearConsoleLog);
     byId('btn-ip-cancel', closeIpModal);
     byId('btn-ip-save', saveIpFromModal);
+    byId('btn-chat-close', closeChatModal);
+    byId('btn-chat-send', sendChatMessage);
+    byId('btn-create-room', openCreateRoomModal);
+    byId('btn-create-room-cancel', closeCreateRoomModal);
+    byId('btn-create-room-save', createRoomFromModal);
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage(); });
     attachConsoleResizeHandle();
 }
 
@@ -234,6 +241,7 @@ async function initApp() {
     appendDebugLog('', 'App starting…', 'info');
     await fetchProfile(0);
     await loadFriends();
+    await loadRooms();
     try {
         await refreshDiscovered();
         setInterval(refreshDiscovered, 3000);
@@ -349,18 +357,19 @@ async function loadFriends() {
         card.className = 'card';
         card.dataset.mac = user.mac;
         card.addEventListener('click', (e) => {
-            if (e.target.closest('.delete-btn') || e.target.closest('.ip-btn')) return;
+            if (e.target.closest('.delete-btn') || e.target.closest('.ip-btn') || e.target.closest('.chat-btn')) return;
             pingFriend(user.mac, user.name);
         });
         const storedIp = user.ip ? ('IP: ' + user.ip) : '';
         card.innerHTML = `
     <div class="status unknown" title="Checking..."></div>
     <div class="info">
-        <h3>${user.name}</h3>
+        <h3>${escapeHtml(user.name)}</h3>
         <p class="card-mac">${user.mac}</p>
         <p class="card-ip" style="${storedIp ? '' : 'display:none;'}">${storedIp}</p>
     </div>
     <div class="card-actions">
+        <button class="chat-btn" type="button" title="Open chat">💬</button>
         <button class="ping-btn" type="button">PING</button>
         <button class="ip-btn" type="button" title="View or edit the IP we have stored for this MAC">IP</button>
         <button class="delete-btn" type="button">🗑️</button>
@@ -377,6 +386,13 @@ async function loadFriends() {
             ipBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openIpModal(user);
+            });
+        }
+        const chatBtn = card.querySelector('.chat-btn');
+        if (chatBtn) {
+            chatBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openChatModal(dmPeerKey(user.mac), user.name, { friendMac: user.mac });
             });
         }
         friendsList.appendChild(card);
@@ -462,6 +478,180 @@ async function addFriendFromDiscovery(peer) {
     showToast(`Added ${peer.name} as a friend.`, 'success');
     await loadFriends();
     refreshDiscovered();
+}
+
+// --- PEER KEY (must match bridge) ---
+function dmPeerKey(mac) {
+    const n = (mac || '').toLowerCase().replace(/-/g, ':').replace(/:/g, '_');
+    return 'dm_' + n;
+}
+function roomPeerKey(roomId) {
+    return 'room_' + (roomId || '').replace(/\//g, '_').replace(/\\/g, '_').slice(0, 32);
+}
+
+// --- CHAT MODAL ---
+let currentChatPeerKey = null;
+
+async function openChatModal(peerKey, title, options = {}) {
+    const overlay = document.getElementById('chat-modal');
+    const titleEl = document.getElementById('chat-modal-title');
+    const inputEl = document.getElementById('chat-input');
+    if (!overlay || !titleEl) return;
+    currentChatPeerKey = peerKey;
+    overlay.dataset.peerKey = peerKey;
+    overlay.dataset.friendMac = options.friendMac || '';
+    overlay.dataset.roomId = options.roomId || '';
+    overlay.dataset.roomName = options.roomName || '';
+    titleEl.textContent = title;
+    overlay.style.display = 'flex';
+    await loadChatHistoryIntoModal(peerKey);
+    inputEl.value = '';
+    setTimeout(() => inputEl.focus(), 100);
+}
+
+function closeChatModal() {
+    const overlay = document.getElementById('chat-modal');
+    if (overlay) overlay.style.display = 'none';
+    currentChatPeerKey = null;
+}
+
+async function loadChatHistoryIntoModal(peerKey) {
+    const container = document.getElementById('chat-messages');
+    if (!container || !window.pywebview?.api?.get_message_history) return;
+    const history = await pywebview.api.get_message_history(peerKey);
+    container.innerHTML = '';
+    for (const msg of history) {
+        const div = document.createElement('div');
+        div.className = 'chat-msg ' + (msg.direction === 'out' ? 'out' : 'in');
+        const timeStr = msg.timestamp ? new Date(msg.timestamp * 1000).toLocaleTimeString() : '';
+        const meta = msg.direction === 'in' && msg.sender_name ? escapeHtml(msg.sender_name) + (timeStr ? ' · ' + timeStr : '') : timeStr;
+        div.innerHTML = '<span class="chat-msg-text">' + escapeHtml(msg.text || '') + '</span>' + (meta ? '<div class="chat-msg-meta">' + meta + '</div>' : '');
+        container.appendChild(div);
+    }
+    container.scrollTop = container.scrollHeight;
+}
+
+function appendChatMessageToModal(peerKey, direction, senderName, text, timestamp) {
+    if (currentChatPeerKey !== peerKey) return;
+    const container = document.getElementById('chat-messages');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + (direction === 'out' ? 'out' : 'in');
+    const timeStr = timestamp ? new Date(timestamp * 1000).toLocaleTimeString() : '';
+    const meta = direction === 'in' && senderName ? escapeHtml(senderName) + (timeStr ? ' · ' + timeStr : '') : timeStr;
+    div.innerHTML = '<span class="chat-msg-text">' + escapeHtml(text || '') + '</span>' + (meta ? '<div class="chat-msg-meta">' + meta + '</div>' : '');
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+async function sendChatMessage() {
+    const overlay = document.getElementById('chat-modal');
+    const inputEl = document.getElementById('chat-input');
+    if (!overlay || overlay.style.display !== 'flex' || !inputEl) return;
+    const text = inputEl.value.trim();
+    if (!text) return;
+    const friendMac = overlay.dataset.friendMac || '';
+    const roomId = overlay.dataset.roomId || '';
+    if (roomId) {
+        const result = await pywebview.api.send_room_message(roomId, text);
+        if (result && result.status === 'error') {
+            showToast(result.message || 'Send failed.', 'error');
+            return;
+        }
+    } else {
+        const result = await pywebview.api.send_message(friendMac, text);
+        if (result && result.status === 'error') {
+            showToast(result.message || 'Send failed.', 'error');
+            return;
+        }
+    }
+    inputEl.value = '';
+    const myName = (await pywebview.api.get_settings()).display_name || '';
+    appendChatMessageToModal(currentChatPeerKey, 'out', myName, text, Date.now() / 1000);
+}
+
+// Called from Python when a new message is received
+window.onIncomingMessage = function(peerKey, senderName, senderMac, text, roomId, roomName) {
+    if (currentChatPeerKey === peerKey) {
+        appendChatMessageToModal(peerKey, 'in', senderName, text, Date.now() / 1000);
+    } else {
+        const label = roomName || senderName || 'Someone';
+        showToast('New message from ' + label, 'success');
+    }
+};
+
+// --- ROOMS ---
+async function loadRooms() {
+    const listEl = document.getElementById('rooms-list');
+    if (!listEl || !window.pywebview?.api?.get_rooms) return;
+    const rooms = await pywebview.api.get_rooms();
+    listEl.innerHTML = '';
+    for (const room of rooms) {
+        const card = document.createElement('div');
+        card.className = 'room-card';
+        const memberCount = (room.members || []).length;
+        card.innerHTML = `
+            <div>
+                <h3 class="room-name">${escapeHtml(room.name || 'Room')}</h3>
+                <p class="room-members">${memberCount} member(s)</p>
+            </div>
+            <button type="button" class="room-open-btn">Chat</button>
+        `;
+        card.querySelector('.room-open-btn').addEventListener('click', () => {
+            openChatModal(roomPeerKey(room.id), room.name || 'Room', { roomId: room.id, roomName: room.name });
+        });
+        listEl.appendChild(card);
+    }
+}
+
+function openCreateRoomModal() {
+    document.getElementById('create-room-modal').style.display = 'flex';
+    document.getElementById('room-name-input').value = '';
+    loadCreateRoomFriends();
+}
+
+function closeCreateRoomModal() {
+    document.getElementById('create-room-modal').style.display = 'none';
+}
+
+async function loadCreateRoomFriends() {
+    const container = document.getElementById('create-room-friends');
+    if (!container) return;
+    const settings = await pywebview.api.get_settings();
+    const users = settings.users || [];
+    container.innerHTML = '';
+    for (const u of users) {
+        const label = document.createElement('label');
+        label.className = 'create-room-friend';
+        label.innerHTML = '<input type="checkbox" data-mac="' + escapeHtml(u.mac) + '"> ' + escapeHtml(u.name || u.mac);
+        container.appendChild(label);
+    }
+}
+
+async function createRoomFromModal() {
+    const name = document.getElementById('room-name-input').value.trim();
+    if (!name) {
+        showToast('Enter a room name.', 'error');
+        return;
+    }
+    const checkboxes = document.querySelectorAll('#create-room-friends input[type="checkbox"]:checked');
+    const memberMacs = Array.from(checkboxes).map(cb => cb.dataset.mac);
+    if (memberMacs.length === 0) {
+        showToast('Select at least one friend.', 'error');
+        return;
+    }
+    const result = await pywebview.api.create_room(name, memberMacs);
+    if (result && result.status === 'error') {
+        showToast(result.message || 'Could not create room.', 'error');
+        return;
+    }
+    closeCreateRoomModal();
+    await loadRooms();
+    showToast('Room created.', 'success');
+    if (result && result.room_id) {
+        const room = await pywebview.api.get_room(result.room_id);
+        if (room) openChatModal(roomPeerKey(room.id), room.name, { roomId: room.id, roomName: room.name });
+    }
 }
 
 // --- UI HELPERS ---

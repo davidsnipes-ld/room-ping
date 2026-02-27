@@ -48,6 +48,12 @@
                 <h3 class="section-title">Friends</h3>
                 <div id="friends-list"></div>
             </section>
+            <section id="rooms-section">
+                <h3 class="section-title">Rooms</h3>
+                <p class="section-hint">Group chats with multiple friends.</p>
+                <div id="rooms-list"></div>
+                <button type="button" class="add-btn add-room-btn" id="btn-create-room">+ Create room</button>
+            </section>
         </div>
     
         <footer>
@@ -95,6 +101,34 @@
             </div>
         </div>
 
+        <div id="chat-modal" class="modal-overlay chat-modal-overlay" style="display:none;">
+            <div class="modal chat-modal">
+                <div class="chat-modal-header">
+                    <h2 id="chat-modal-title">Chat</h2>
+                    <button type="button" class="chat-close-btn" id="btn-chat-close" title="Close">×</button>
+                </div>
+                <div class="chat-messages" id="chat-messages"></div>
+                <div class="chat-input-wrap">
+                    <input type="text" id="chat-input" placeholder="Type a message..." maxlength="2000">
+                    <button type="button" class="send-chat-btn" id="btn-chat-send">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="create-room-modal" class="modal-overlay" style="display:none;">
+            <div class="modal">
+                <h2>Create room</h2>
+                <label for="room-name-input">Room name</label>
+                <input type="text" id="room-name-input" placeholder="e.g. Study Group">
+                <label>Add friends</label>
+                <div id="create-room-friends" class="create-room-friends"></div>
+                <div class="modal-buttons">
+                    <button type="button" class="cancel-btn" id="btn-create-room-cancel">Cancel</button>
+                    <button type="button" class="save-btn" id="btn-create-room-save">Create</button>
+                </div>
+            </div>
+        </div>
+
         <div id="settings-modal" class="modal-overlay" style="display:none;">
             <div class="modal">
                 <h2>Settings</h2>
@@ -112,7 +146,7 @@
                     <input type="checkbox" id="console-enabled-toggle" onchange="toggleConsoleEnabled()">
                 </div>
                 <div class="firewall-help">
-                    <strong>Pings not working?</strong> Allow this app in your firewall for <strong>Private</strong> networks (UDP port 5005). Windows: Security → Firewall → Allow an app. If you clicked Block by mistake, add RoomPing Pro there and check Private.
+                    <strong>Pings not working?</strong> Allow this app in your firewall for <strong>Private</strong> networks (UDP ports 5005, 5006, 5007). Windows: Security → Firewall → Allow an app. If you clicked Block by mistake, add RoomPing Pro there and check Private.
                 </div>
                 <div class="setting-item">
                     <button type="button" class="save-btn" id="btn-check-updates" style="width:100%;">Check for updates</button>

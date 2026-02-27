@@ -101,7 +101,7 @@ python main.py
 
 ## Firewall
 
-The app uses **UDP port 5005**. Both sender and receiver must allow it. If the other person is never found or never gets the ping (e.g. on Windows), they should allow RoomPingPro (or Python) in Windows Security → Firewall → Allow an app for Private networks, or allow inbound UDP port 5005. The first ping can take a few seconds. 
+The app uses **UDP ports 5005** (ping), **5006** (discovery), and **5007** (messaging). Allow RoomPingPro (or Python) for **Private** networks, or allow inbound UDP 5005, 5006, and 5007. If the other person is never found or never gets the ping (e.g. on Windows), they should allow the app in Windows Security → Firewall → Allow an app for Private networks. The first ping can take a few seconds. 
 ---
 
 ## Creating new releases (for repo maintainers)

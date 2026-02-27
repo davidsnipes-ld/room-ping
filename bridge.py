@@ -7,11 +7,13 @@ import sys
 import threading
 import time
 import urllib.request
+import uuid
 import webbrowser
 from logic import (
     NetworkEngine,
     DEFAULT_PORT,
     DISCOVERY_PORT,
+    MESSAGE_PORT,
     BEACON_INTERVAL,
     PEER_STALE_SECONDS,
 )
@@ -62,7 +64,7 @@ class Bridge:
             shutil.copy(example, self.settings_file)
         else:
             with open(self.settings_file, "w") as f:
-                json.dump({"users": [], "display_name": "", "alerts_pinned": False}, f, indent=4)
+                json.dump({"users": [], "display_name": "", "alerts_pinned": False, "rooms": []}, f, indent=4)
 
     def set_alerts_window(self, window):
         """Hook for main.py to provide the floating alerts window instance."""
@@ -110,8 +112,9 @@ class Bridge:
                 s.setdefault("users", [])
                 s.setdefault("display_name", "")
                 s.setdefault("alerts_pinned", False)
+                s.setdefault("rooms", [])
                 return s
-        return {"users": [], "display_name": "", "alerts_pinned": False}
+        return {"users": [], "display_name": "", "alerts_pinned": False, "rooms": []}
 
     def _mac_norm(self, mac):
         return (mac or "").lower().replace("-", ":")
@@ -416,6 +419,210 @@ class Bridge:
                 )
         # online first, then name
         return sorted(out, key=lambda x: (not x["online"], (x["name"] or "").lower()))
+
+    # --- Message history (saved to disk per conversation) ---
+    def _message_history_dir(self):
+        d = os.path.join(_project_dir(), "message_history")
+        try:
+            os.makedirs(d, exist_ok=True)
+        except OSError:
+            pass
+        return d
+
+    def _peer_key(self, mac):
+        """Safe filename for DM: dm_aa_bb_cc_dd_ee_ff."""
+        return "dm_" + self._mac_norm(mac).replace(":", "_")
+
+    def _room_key(self, room_id):
+        return "room_" + (room_id or "").replace("/", "_").replace("\\", "_")[:32]
+
+    def get_message_history(self, peer_key):
+        """peer_key is either dm_aa_bb_cc_dd_ee_ff or room_<id>. Returns list of {direction, sender_name, sender_mac?, text, timestamp}."""
+        path = os.path.join(self._message_history_dir(), peer_key + ".json")
+        if not os.path.isfile(path):
+            return []
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+
+    def append_message_to_history(self, peer_key, direction, sender_name, text, sender_mac=None):
+        """Append one message to the conversation file. direction is 'in' or 'out'."""
+        path = os.path.join(self._message_history_dir(), peer_key + ".json")
+        history = self.get_message_history(peer_key)
+        history.append({
+            "direction": direction,
+            "sender_name": sender_name or "Unknown",
+            "sender_mac": sender_mac,
+            "text": text or "",
+            "timestamp": time.time(),
+        })
+        try:
+            with open(path, "w") as f:
+                json.dump(history, f, indent=2)
+        except OSError:
+            pass
+
+    def is_friend(self, mac):
+        settings = self.get_settings()
+        return self._find_user_by_mac(settings, mac) is not None
+
+    def get_friend_name(self, mac):
+        settings = self.get_settings()
+        u = self._find_user_by_mac(settings, mac)
+        return (u.get("name") or "Unknown") if u else None
+
+    def get_friend_ip(self, mac):
+        """Return stored IP for friend, or None. Does not scan."""
+        settings = self.get_settings()
+        u = self._find_user_by_mac(settings, mac)
+        if not u:
+            return None
+        ip = (u.get("ip") or "").strip()
+        return ip if ip and self._looks_like_ip(ip) else None
+
+    def send_message(self, friend_mac, text):
+        """Send a direct message to a friend. Friend must be in users. Returns {status, error?}."""
+        text = (text or "").strip()
+        if not text:
+            return {"status": "error", "message": "Message is empty."}
+        settings = self.get_settings()
+        user = self._find_user_by_mac(settings, friend_mac)
+        if not user:
+            return {"status": "error", "message": "They are not in your Friends list."}
+        ip = self.get_friend_ip(friend_mac)
+        if not ip:
+            return {"status": "error", "message": "No IP for this friend. They may be offline; try refreshing."}
+        my_name = (self.get_settings().get("display_name") or "").strip() or socket.gethostname()
+        my_mac = self.engine.get_my_mac()
+        net = self.engine.get_my_network_info()
+        my_ip = (net.get("ips") or [""])[0]
+        payload = {
+            "type": "msg",
+            "sender_name": my_name,
+            "sender_mac": my_mac,
+            "sender_ip": my_ip,
+            "text": text,
+        }
+        self.engine.send_message_udp(ip, payload)
+        peer_key = self._peer_key(friend_mac)
+        self.append_message_to_history(peer_key, "out", my_name, text, my_mac)
+        return {"status": "success"}
+
+    def record_incoming_message(self, sender_mac, sender_name, text, room_id=None, room_name=None):
+        """Save an incoming message to history and return peer_key for UI (so we can open that chat)."""
+        if room_id:
+            peer_key = self._room_key(room_id)
+        else:
+            peer_key = self._peer_key(sender_mac)
+        self.append_message_to_history(peer_key, "in", sender_name, text, sender_mac)
+        return {"peer_key": peer_key, "room_id": room_id, "room_name": room_name}
+
+    # --- Rooms (group chat) ---
+    def get_rooms(self):
+        settings = self.get_settings()
+        return list(settings.get("rooms", []))
+
+    def create_room(self, name, member_macs):
+        """Create a room with name and list of friend MACs. Returns {status, room_id?, error?}."""
+        name = (name or "").strip()
+        if not name:
+            return {"status": "error", "message": "Room name is required."}
+        settings = self.get_settings()
+        friends = {self._mac_norm(u.get("mac")) for u in settings.get("users", [])}
+        members = []
+        for mac in (member_macs or []):
+            mac_clean = self._mac_norm(mac)
+            if mac_clean in friends:
+                members.append(mac_clean)
+        if not members:
+            return {"status": "error", "message": "Add at least one friend to the room."}
+        room_id = str(uuid.uuid4())[:8]
+        if "rooms" not in settings:
+            settings["rooms"] = []
+        settings["rooms"].append({"id": room_id, "name": name, "members": members})
+        with open(self.settings_file, "w") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "success", "room_id": room_id}
+
+    def get_room(self, room_id):
+        settings = self.get_settings()
+        for r in settings.get("rooms", []):
+            if r.get("id") == room_id:
+                return r
+        return None
+
+    def is_room_member(self, room_id, mac):
+        room = self.get_room(room_id)
+        if not room:
+            return False
+        return self._mac_norm(mac) in [self._mac_norm(m) for m in room.get("members", [])]
+
+    def am_i_in_room(self, room_id):
+        """True if this device (our MAC) is a member of the room."""
+        my_mac = self.engine.get_my_mac()
+        return self.is_room_member(room_id, my_mac)
+
+    def add_room_member(self, room_id, mac):
+        settings = self.get_settings()
+        rooms = settings.get("rooms", [])
+        room = next((r for r in rooms if r.get("id") == room_id), None)
+        if not room:
+            return {"status": "error", "message": "Room not found."}
+        if not self.is_friend(mac):
+            return {"status": "error", "message": "They must be a friend first."}
+        mac_clean = self._mac_norm(mac)
+        if mac_clean not in room.get("members", []):
+            room.setdefault("members", []).append(mac_clean)
+            with open(self.settings_file, "w") as f:
+                json.dump(settings, f, indent=4)
+        return {"status": "success"}
+
+    def remove_room_member(self, room_id, mac):
+        settings = self.get_settings()
+        rooms = settings.get("rooms", [])
+        room = next((r for r in rooms if r.get("id") == room_id), None)
+        if not room:
+            return {"status": "error", "message": "Room not found."}
+        mac_clean = self._mac_norm(mac)
+        room["members"] = [m for m in room.get("members", []) if self._mac_norm(m) != mac_clean]
+        with open(self.settings_file, "w") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "success"}
+
+    def send_room_message(self, room_id, text):
+        """Send a message to all members of the room (except self)."""
+        text = (text or "").strip()
+        if not text:
+            return {"status": "error", "message": "Message is empty."}
+        room = self.get_room(room_id)
+        if not room:
+            return {"status": "error", "message": "Room not found."}
+        my_mac = self.engine.get_my_mac().lower().replace("-", ":")
+        my_name = (self.get_settings().get("display_name") or "").strip() or socket.gethostname()
+        net = self.engine.get_my_network_info()
+        my_ip = (net.get("ips") or [""])[0]
+        payload = {
+            "type": "msg",
+            "sender_name": my_name,
+            "sender_mac": my_mac,
+            "sender_ip": my_ip,
+            "text": text,
+            "room_id": room_id,
+            "room_name": room.get("name") or "Room",
+        }
+        sent = 0
+        for mac in room.get("members", []):
+            if self._mac_norm(mac) == my_mac:
+                continue
+            ip = self.get_friend_ip(mac)
+            if ip:
+                self.engine.send_message_udp(ip, payload)
+                sent += 1
+        peer_key = self._room_key(room_id)
+        self.append_message_to_history(peer_key, "out", my_name, text, my_mac)
+        return {"status": "success", "sent_to": sent}
     
     def delete_user(self, mac):
         """Removes a user from settings.json by their MAC address"""

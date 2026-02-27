@@ -15,6 +15,8 @@ import uuid
 DEFAULT_PORT = 5005
 # Port for discovery beacons (who's on the network with RoomPing Pro)
 DISCOVERY_PORT = 5006
+# Port for local messaging (friends and rooms)
+MESSAGE_PORT = 5007
 BEACON_INTERVAL = 4.0
 PEER_STALE_SECONDS = 15.0
 MAC_PATTERN = re.compile(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})")
@@ -336,3 +338,38 @@ class NetworkEngine:
                             print(f"PONG send error: {e}")
             except Exception as e:
                 print(f"Listener error: {e}")
+
+    def send_message_udp(self, target_ip, payload_dict):
+        """Send one JSON message to target_ip on MESSAGE_PORT. Payload must be JSON-serializable."""
+        try:
+            payload = json.dumps(payload_dict).encode("utf-8")
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.sendto(payload, (target_ip, MESSAGE_PORT))
+        except Exception as e:
+            print(f"Message send to {target_ip}: {e}")
+
+    def listen_messages_forever(self, callback):
+        """Listen for UDP messages on MESSAGE_PORT; call callback(parsed_dict) for each. parsed_dict has sender_name, sender_mac, sender_ip, text, room_id (optional), room_name (optional)."""
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            try:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(("", MESSAGE_PORT))
+                print(f"Listening for messages on port {MESSAGE_PORT}...")
+                while True:
+                    data, addr = s.recvfrom(4096)
+                    try:
+                        obj = json.loads(data.decode("utf-8"))
+                        if obj.get("type") != "msg":
+                            continue
+                        callback({
+                            "sender_name": obj.get("sender_name") or "Unknown",
+                            "sender_mac": (obj.get("sender_mac") or "").lower().replace("-", ":"),
+                            "sender_ip": obj.get("sender_ip") or addr[0],
+                            "text": obj.get("text") or "",
+                            "room_id": obj.get("room_id"),
+                            "room_name": obj.get("room_name"),
+                        })
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        pass
+            except Exception as e:
+                print(f"Message listener error: {e}")

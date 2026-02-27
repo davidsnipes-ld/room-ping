@@ -82,6 +82,32 @@ def start_logic():
     # Start the UDP listener in a background thread so the window stays active
     threading.Thread(target=engine.listen_forever, args=(on_ping_received,), daemon=True).start()
 
+    def on_message_received(data):
+        sender_mac = data.get("sender_mac") or ""
+        sender_name = data.get("sender_name") or "Unknown"
+        text = data.get("text") or ""
+        room_id = data.get("room_id")
+        room_name = data.get("room_name")
+        if room_id:
+            if not api.am_i_in_room(room_id):
+                return
+        else:
+            if not api.is_friend(sender_mac):
+                return
+        result = api.record_incoming_message(sender_mac, sender_name, text, room_id, room_name)
+        peer_key = result.get("peer_key") or ""
+        def safe(s):
+            return json.dumps(str(s) if s is not None else "")
+        try:
+            window.evaluate_js(
+                "onIncomingMessage(" + safe(peer_key) + "," + safe(sender_name) + "," + safe(sender_mac) + ","
+                + safe(text) + "," + safe(room_id) + "," + safe(room_name) + ")"
+            )
+        except Exception:
+            pass
+
+    threading.Thread(target=engine.listen_messages_forever, args=(on_message_received,), daemon=True).start()
+
     # Launch both windows, then drop the main window out of always-on-top after a short moment
     def _after_start(main_win, alerts_win):
         try:
