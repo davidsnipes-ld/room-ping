@@ -184,6 +184,11 @@ class NetworkEngine:
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                     s.sendto(payload, (broadcast, DISCOVERY_PORT))
+            except OSError as e:
+                # Some neighbour subnets will have no route / host; that's expected. Don't spam logs for that.
+                if e.errno in (64, 65):  # Host is down / No route to host (Darwin)
+                    continue
+                print(f"Beacon send to {broadcast}: {e}")
             except Exception as e:
                 print(f"Beacon send to {broadcast}: {e}")
 
