@@ -27,5 +27,6 @@
         }
     ],
     "display_name": "David S.",
-    "alerts_pinned": true
+    "alerts_pinned": true,
+    "rooms": []
 }
