@@ -28,9 +28,7 @@ def start_logic():
         resizable=True,
         on_top=True,
         hidden=True,
-        frameless=True,
         min_size=(160, 60),
-        easy_drag=False,
     )
     try:
         api.set_alerts_window(alerts_window)
