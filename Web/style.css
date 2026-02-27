@@ -415,6 +415,7 @@ footer {
     cursor: pointer;
 }
 
+/* Toasts (update, ping, messages, etc.) stay on top of all in-app overlays (Settings, modals, chat) */
 .ping-notification {
     position: fixed;
     top: 20px;
@@ -425,7 +426,7 @@ footer {
     padding: 15px 30px;
     border-radius: 50px;
     box-shadow: 0 4px 15px rgba(255, 75, 43, 0.4);
-    z-index: 9999;
+    z-index: 100001;
     animation: slideDown 0.5s ease-out;
 }
 
