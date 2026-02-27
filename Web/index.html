@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="style.css">
-    <title>RoomPing Pro</title>
+    <title>RoomPingPro1</title>
 </head>
 <body>
     <div class="app-container">
         <div id="firewall-banner" class="firewall-banner" role="status">
-            <span>When your firewall asks to allow this app, choose <strong>Allow</strong> (Private networks) so pings work. If you already blocked it, add RoomPingPro in Windows Security → Firewall → Allow an app.</span>
+            <span>When your firewall asks to allow this app, choose <strong>Allow</strong> (Private networks) so pings work. If you already blocked it, add RoomPingPro1 in Windows Security → Firewall → Allow an app.</span>
             <button type="button" class="firewall-dismiss" id="btn-dismiss-firewall" aria-label="Dismiss">×</button>
         </div>
+        <div class="app-body">
         <header>
             <div class="header-top">
-                <h1>RoomPing <span>Pro</span></h1>
+                <h1>RoomPingPro1</h1>
                 <div style="display:flex; gap:4px;">
                     <button class="icon-btn" type="button" id="btn-refresh-status" title="Refresh online status">🔄</button>
                     <button class="icon-btn" type="button" id="btn-settings">⚙️</button>
@@ -42,8 +43,10 @@
             <button class="add-btn" type="button" id="btn-add-roommate">+ Add Roommate</button>
             <button type="button" class="console-btn" id="btn-console-toggle" title="Show console log for debugging">Console</button>
         </footer>
+        </div>
 
         <div id="console-wrap" class="console-wrap" hidden>
+            <div class="console-resize-handle" id="console-resize-handle" title="Drag to resize"></div>
             <div class="console-header">
                 <span class="console-title">Console log</span>
                 <button type="button" class="console-close" id="btn-console-close" title="Close">×</button>
@@ -88,8 +91,12 @@
                     <label>Audio Alerts</label>
                     <input type="checkbox" id="audio-toggle" checked onchange="toggleAudio()">
                 </div>
+                <div class="setting-item">
+                    <label>Show Console Log</label>
+                    <input type="checkbox" id="console-enabled-toggle" onchange="toggleConsoleEnabled()">
+                </div>
                 <div class="firewall-help">
-                    <strong>Pings not working?</strong> Allow this app in your firewall for <strong>Private</strong> networks (UDP port 5005). Windows: Security → Firewall → Allow an app. If you clicked Block by mistake, add RoomPingPro there and check Private.
+                    <strong>Pings not working?</strong> Allow this app in your firewall for <strong>Private</strong> networks (UDP port 5005). Windows: Security → Firewall → Allow an app. If you clicked Block by mistake, add RoomPingPro1 there and check Private.
                 </div>
                 <div class="setting-item">
                     <button type="button" class="save-btn" id="btn-check-updates" style="width:100%;">Check for updates</button>

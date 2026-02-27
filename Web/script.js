@@ -1,10 +1,39 @@
 // --- APP STATE ---
 let audioEnabled = true;
 const consoleLogEntries = [];
+const CONSOLE_ENABLED_KEY = 'roomping-console-enabled';
+const DEFAULT_CONSOLE_HEIGHT = 88;
+const MIN_CONSOLE_HEIGHT = 66;
+const MAX_CONSOLE_HEIGHT_VH = 50;
+
+function isConsoleEnabled() {
+    try {
+        return localStorage.getItem(CONSOLE_ENABLED_KEY) !== '0';
+    } catch (e) {
+        return true;
+    }
+}
+
+function setConsoleEnabled(enabled) {
+    try {
+        localStorage.setItem(CONSOLE_ENABLED_KEY, enabled ? '1' : '0');
+    } catch (e) {}
+}
+
+function applyConsoleEnabledUI() {
+    const enabled = isConsoleEnabled();
+    const btn = document.getElementById('btn-console-toggle');
+    const wrap = document.getElementById('console-wrap');
+    if (btn) btn.style.display = enabled ? '' : 'none';
+    if (!enabled && wrap) {
+        wrap.hidden = true;
+    }
+}
 
 function appendDebugLog(label, message, type) {
     const time = new Date().toLocaleTimeString();
     consoleLogEntries.push({ time, label, message, type: type || 'info' });
+    if (!isConsoleEnabled()) return;
     const content = document.getElementById('console-content');
     if (content) {
         const line = document.createElement('div');
@@ -40,9 +69,40 @@ function closeConsole() {
 }
 
 function toggleConsole() {
+    if (!isConsoleEnabled()) return;
     const wrap = document.getElementById('console-wrap');
     if (!wrap) return;
     wrap.hidden = !wrap.hidden;
+}
+
+function toggleConsoleEnabled() {
+    const cb = document.getElementById('console-enabled-toggle');
+    const enabled = cb ? cb.checked : false;
+    setConsoleEnabled(enabled);
+    applyConsoleEnabledUI();
+    if (enabled) {
+        const wrap = document.getElementById('console-wrap');
+        if (wrap) wrap.hidden = true; // start closed; user clicks Console to open
+        rerenderConsoleFromEntries();
+    } else {
+        const wrap = document.getElementById('console-wrap');
+        if (wrap) wrap.hidden = true;
+    }
+}
+
+function rerenderConsoleFromEntries() {
+    const content = document.getElementById('console-content');
+    if (!content || !isConsoleEnabled()) return;
+    content.innerHTML = '';
+    for (const e of consoleLogEntries) {
+        const line = document.createElement('div');
+        line.className = 'console-line log-' + (e.type === 'ok' ? 'ok' : e.type === 'fail' ? 'fail' : 'info');
+        line.innerHTML = '<span class="console-time">[' + escapeHtml(e.time) + ']</span> ' +
+            (e.label ? '<span class="console-label">[' + escapeHtml(e.label) + ']</span> ' : '') +
+            '<span class="console-msg">' + escapeHtml(e.message) + '</span>';
+        content.appendChild(line);
+    }
+    content.scrollTop = content.scrollHeight;
 }
 
 function openIpModal(user) {
@@ -125,19 +185,47 @@ function attachClickHandlers() {
     byId('btn-console-clear', clearConsoleLog);
     byId('btn-ip-cancel', closeIpModal);
     byId('btn-ip-save', saveIpFromModal);
+    attachConsoleResizeHandle();
+}
+
+function attachConsoleResizeHandle() {
+    const handle = document.getElementById('console-resize-handle');
+    const wrap = document.getElementById('console-wrap');
+    if (!handle || !wrap) return;
+    let startY = 0, startH = 0;
+    handle.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        startY = e.clientY;
+        startH = wrap.offsetHeight;
+        const maxH = Math.min(wrap.parentElement.offsetHeight * (MAX_CONSOLE_HEIGHT_VH / 100), 400);
+        function onMove(e) {
+            const dy = startY - e.clientY;
+            let h = Math.max(MIN_CONSOLE_HEIGHT, Math.min(maxH, startH + dy));
+            wrap.style.height = h + 'px';
+        }
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    });
 }
 
 // --- INITIALIZATION ---
 window.addEventListener('pywebviewready', initApp);
 
 async function initApp() {
-    appendDebugLog('', 'App starting…', 'info');
     try {
         if (localStorage.getItem('roomping-firewall-banner-dismissed') === '1') {
             const b = document.getElementById('firewall-banner');
             if (b) b.style.display = 'none';
         }
+        const cb = document.getElementById('console-enabled-toggle');
+        if (cb) cb.checked = isConsoleEnabled();
+        applyConsoleEnabledUI();
     } catch (e) {}
+    appendDebugLog('', 'App starting…', 'info');
     await fetchProfile(0);
     await loadFriends();
     appendDebugLog('', 'Ready. Use Console to see connection and ping details.', 'info');
@@ -324,7 +412,11 @@ async function loadFriends() {
 // --- UI HELPERS ---
 function openModal() { document.getElementById('modal-overlay').style.display = 'flex'; }
 function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
-function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
+function openSettings() {
+    document.getElementById('settings-modal').style.display = 'flex';
+    const cb = document.getElementById('console-enabled-toggle');
+    if (cb) cb.checked = isConsoleEnabled();
+}
 function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
 
 function toggleAudio() {
