@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RoomPing Pro Alerts</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 12px 14px;
+            background: #121212;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 14px;
+        }
+        .title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #888;
+            margin: 0 0 6px 0;
+        }
+        .ping-box {
+            border-radius: 10px;
+            padding: 10px 12px;
+            background: #1f1f1f;
+            border: 1px solid #333;
+        }
+        .ping-label {
+            font-size: 12px;
+            color: #ff4b2b;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .ping-main {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .ping-meta {
+            font-size: 12px;
+            color: #aaa;
+        }
+        .hint {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="title">RoomPing Pro Alerts</div>
+    <div class="ping-box" id="ping-box">
+        <div class="ping-label">Waiting for pings…</div>
+        <div class="ping-main" id="ping-main">No pings yet</div>
+        <div class="ping-meta" id="ping-meta">Leave this window open and on top to see alerts over other apps.</div>
+    </div>
+    <div class="hint">Resize and move this window wherever you like. It will light up when someone pings you.</div>
+
+    <script>
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = String(str);
+            return div.innerHTML;
+        }
+
+        window.showPing = function (senderIp) {
+            const box = document.getElementById('ping-box');
+            const main = document.getElementById('ping-main');
+            const meta = document.getElementById('ping-meta');
+            const label = box.querySelector('.ping-label');
+            const time = new Date().toLocaleTimeString();
+            label.textContent = 'PING received';
+            main.innerHTML = 'From: ' + escapeHtml(senderIp || 'Unknown');
+            meta.innerHTML = 'Time: ' + escapeHtml(time);
+            box.style.borderColor = '#ff4b2b';
+            box.style.boxShadow = '0 0 18px rgba(255,75,43,0.6)';
+            // brief flash animation
+            box.animate(
+                [{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }],
+                { duration: 180, easing: 'ease-out' }
+            );
+        };
+    </script>
+</body>
+</html>
+

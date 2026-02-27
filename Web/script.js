@@ -169,6 +169,11 @@ function attachClickHandlers() {
     byId('btn-add-roommate', openModal);
     byId('btn-refresh-status', () => loadFriends());
     byId('btn-settings', openSettings);
+    byId('btn-alert-popout', () => {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.set_alerts_visible) {
+            window.pywebview.api.set_alerts_visible(true);
+        }
+    });
     byId('btn-modal-cancel', closeModal);
     byId('btn-modal-add', saveFriend);
     byId('btn-settings-close', closeSettings);

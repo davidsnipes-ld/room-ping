@@ -40,6 +40,7 @@ class Bridge:
     def __init__(self):
         self.engine = NetworkEngine()
         self.settings_file = os.path.join(_project_dir(), "settings.json")
+        self._alerts_window = None
         self._ensure_settings_exists()
 
     def _ensure_settings_exists(self):
@@ -52,6 +53,23 @@ class Bridge:
         else:
             with open(self.settings_file, "w") as f:
                 json.dump({"users": []}, f, indent=4)
+
+    def set_alerts_window(self, window):
+        """Hook for main.py to provide the floating alerts window instance."""
+        self._alerts_window = window
+
+    def set_alerts_visible(self, visible):
+        """Show or hide the floating alerts window from JS."""
+        if self._alerts_window is None:
+            return False
+        try:
+            if visible:
+                self._alerts_window.show()
+            else:
+                self._alerts_window.hide()
+            return True
+        except Exception:
+            return False
 
     def get_settings(self):
         if os.path.exists(self.settings_file):
