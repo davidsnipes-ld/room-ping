@@ -24,11 +24,12 @@ def start_logic():
         _ALERT_INDEX,
         js_api=api,
         width=320,
-        height=140,
+        height=120,
         resizable=True,
         on_top=True,
         hidden=True,
         frameless=True,
+        min_size=(160, 60),
     )
     try:
         api.set_alerts_window(alerts_window)
