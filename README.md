@@ -128,7 +128,8 @@ To build on your own machine:
 
 You must build on each OS to get that OS’s executable (e.g. you get RoomPingPro.exe only when building on Windows). Each output is self-contained; users unzip the release zip and double‑click to run.
 
-**Updates:** Edit **version.txt**: line 1 = app version (e.g. 1.0.0), line 2 = your GitHub repo (e.g. yourusername/AlertNotification). In the app, **Settings → Check for updates** opens the latest release page so users can download the new build. Bump line 1 when you release a new tag.
+**Updates:** Version uses **patch numbers**: 1.0.0 → 1.0.1 → 1.0.2. **Commit** as often as you like (no version change). When you’re ready to release, **push to main** — a pre-push hook bumps the version and commits it, then the push includes that bump. So **push** establishes the next version.  
+To enable this, install the hook once: **`cp scripts/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push`** (on Windows with Git Bash: `cp scripts/pre-push .git/hooks/pre-push` then in Git Bash `chmod +x .git/hooks/pre-push`). Line 2 of `version.txt` is your GitHub repo. In the app, **Settings → Check for updates** opens the latest release page.
 
 ---
 
@@ -141,7 +142,9 @@ You must build on each OS to get that OS’s executable (e.g. you get RoomPingPr
 | `logic.py`           | MAC detection and network ping (all platforms) |
 | `Web/`               | App UI (HTML/CSS/JS); `Web/assets/` holds optional `alert.mp3` |
 | `RoomPingPro.spec`   | PyInstaller spec for building the standalone app |
-| `version.txt`        | Line 1: app version; line 2: GitHub owner/repo for update check |
+| `version.txt`        | Line 1: app version (1.0.1, 1.0.2…); line 2: GitHub owner/repo. Bumped automatically on push to main if hook installed |
+| `bump_version.py`    | Bumps patch in version.txt (1.0.0 → 1.0.1). Used by pre-push hook; can also run manually |
+| `scripts/pre-push`   | Git hook: on push to main, bumps version and commits it so push establishes the next version. Install once (see Updates above) |
 | `settings.example.json` | Template; copy to `settings.json` (auto-created if missing) |
 | `run.bat` / `run.sh` | One-click run from source (Windows / Mac–Linux) |
 | `build-windows.bat` / `build-linux.sh` / `build-mac.sh` | Build self-contained executable on Windows / Linux / macOS (for maintainers) |

@@ -1,0 +1,22 @@
+#!/bin/bash
+# Bump version only when pushing main. Commits do not change the version.
+# Install once: cp scripts/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+set -e
+pushing_main=
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    pushing_main=1
+    break
+  fi
+done
+if [ -z "$pushing_main" ]; then
+  exit 0
+fi
+cd "$(git rev-parse --show-toplevel)"
+if ! python3 bump_version.py 2>/dev/null; then
+  python bump_version.py
+fi
+new_ver=$(sed -n '1p' version.txt | tr -d '\r\n')
+git add version.txt
+git commit -m "Bump version to $new_ver" --no-verify
+exit 0
