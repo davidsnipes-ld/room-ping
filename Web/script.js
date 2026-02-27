@@ -169,8 +169,9 @@ function attachClickHandlers() {
     byId('btn-add-roommate', openModal);
     byId('btn-refresh-status', () => loadFriends());
     byId('btn-settings', openSettings);
-    byId('btn-alert-popout', () => {
-        if (window.pywebview && window.pywebview.api && window.pywebview.api.set_alerts_visible) {
+    byId('btn-alert-popout', async () => {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.set_alerts_visible && window.pywebview.api.set_alerts_pinned) {
+            await window.pywebview.api.set_alerts_pinned(true);
             window.pywebview.api.set_alerts_visible(true);
         }
     });

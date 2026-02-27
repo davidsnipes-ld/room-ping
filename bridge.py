@@ -62,7 +62,7 @@ class Bridge:
             shutil.copy(example, self.settings_file)
         else:
             with open(self.settings_file, "w") as f:
-                json.dump({"users": [], "display_name": ""}, f, indent=4)
+                json.dump({"users": [], "display_name": "", "alerts_pinned": False}, f, indent=4)
 
     def set_alerts_window(self, window):
         """Hook for main.py to provide the floating alerts window instance."""
@@ -90,14 +90,28 @@ class Bridge:
             json.dump(settings, f, indent=4)
         return {"status": "success"}
 
+    def set_alerts_pinned(self, pinned):
+        """Remember whether user has opted in to the floating alerts window."""
+        settings = self.get_settings()
+        settings["alerts_pinned"] = bool(pinned)
+        with open(self.settings_file, "w") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "success", "alerts_pinned": settings["alerts_pinned"]}
+
+    def is_alerts_pinned(self):
+        """Return True if user has opted in to the floating alerts window."""
+        settings = self.get_settings()
+        return bool(settings.get("alerts_pinned"))
+
     def get_settings(self):
         if os.path.exists(self.settings_file):
             with open(self.settings_file, "r") as f:
                 s = json.load(f)
                 s.setdefault("users", [])
                 s.setdefault("display_name", "")
+                s.setdefault("alerts_pinned", False)
                 return s
-        return {"users": [], "display_name": ""}
+        return {"users": [], "display_name": "", "alerts_pinned": False}
 
     def _mac_norm(self, mac):
         return (mac or "").lower().replace("-", ":")
