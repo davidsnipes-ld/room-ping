@@ -22,11 +22,13 @@ def start_logic():
     alerts_window = webview.create_window(
         "RoomPing Pro Alerts",
         _ALERT_INDEX,
+        js_api=api,
         width=320,
         height=140,
         resizable=True,
         on_top=True,
         hidden=True,
+        frameless=True,
     )
     try:
         api.set_alerts_window(alerts_window)

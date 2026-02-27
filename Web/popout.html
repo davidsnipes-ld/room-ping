@@ -72,10 +72,26 @@
         .ping-label.flash {
             animation: flash-label 0.8s ease-in-out 3;
         }
+
+        /* Compact mode: very narrow window – show only the PING RECEIVED banner for a super-minimal pill */
+        @media (max-width: 220px) {
+            .title,
+            .ping-main,
+            .ping-meta,
+            .hint {
+                display: none;
+            }
+            .ping-box {
+                padding: 6px 8px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="title">RoomPing Pro Alerts</div>
+    <div class="title pywebview-drag-region">
+        <span>RoomPing Pro Alerts</span>
+        <button id="close-btn" style="float:right; background:none; border:none; color:#888; cursor:pointer; font-size:13px; padding:0 4px;">×</button>
+    </div>
     <div class="ping-box" id="ping-box">
         <div class="ping-label">Waiting for pings…</div>
         <div class="ping-main" id="ping-main">No pings yet</div>
@@ -89,6 +105,14 @@
             div.textContent = String(str);
             return div.innerHTML;
         }
+
+        document.getElementById('close-btn').addEventListener('click', function () {
+            if (window.pywebview && window.pywebview.api && window.pywebview.api.set_alerts_visible) {
+                window.pywebview.api.set_alerts_visible(false);
+            } else {
+                window.close();
+            }
+        });
 
         window.showPing = function (senderIp) {
             const box = document.getElementById('ping-box');
