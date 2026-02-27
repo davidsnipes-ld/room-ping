@@ -25,5 +25,6 @@
             "last_check": "Could not find on network. Possible: different WiFi/subnet, their device off, or their firewall blocking discovery (ping).",
             "ip": ""
         }
-    ]
+    ],
+    "display_name": "David S."
 }
