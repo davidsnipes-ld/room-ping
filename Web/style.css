@@ -285,12 +285,26 @@ header span { color: #ff4b2b; }
 
 footer {
     padding: 20px;
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.footer-top {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
 }
+
+.version-label {
+    font-size: 11px;
+    color: #666;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+}
+
 
 /* Console log panel (open/close via Console button) */
 .console-btn {

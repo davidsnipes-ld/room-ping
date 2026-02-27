@@ -238,6 +238,15 @@ async function initApp() {
         if (cb) cb.checked = isConsoleEnabled();
         applyConsoleEnabledUI();
     } catch (e) {}
+    try {
+        if (window.pywebview?.api?.get_app_version) {
+            const info = await pywebview.api.get_app_version();
+            const label = document.getElementById('app-version-label');
+            if (label && info && info.version) {
+                label.textContent = 'v' + info.version;
+            }
+        }
+    } catch (e) {}
     appendDebugLog('', 'App starting…', 'info');
     await fetchProfile(0);
     await loadFriends();
