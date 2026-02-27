@@ -22,7 +22,7 @@
         {
             "name": "Aaron",
             "mac": "50:EB:F6:7F:BF:8D",
-            "last_check": "Could not find on network. Same WiFi? Their device on? Their firewall may block discovery (ping).",
+            "last_check": "Could not find on network. Possible: different WiFi/subnet, their device off, or their firewall blocking discovery (ping).",
             "ip": ""
         }
     ],
