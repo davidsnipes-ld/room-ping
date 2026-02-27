@@ -25,22 +25,37 @@ def start_logic():
     except Exception:
         pass
 
-    # Floating always-on-top alerts window (hidden by default, can be shown from main UI and on ping)
-    alerts_window = webview.create_window(
-        "RoomPing Pro Alerts",
-        _ALERT_INDEX,
-        js_api=api,
-        width=320,
-        height=120,
-        resizable=True,
-        on_top=True,
-        hidden=True,
-        min_size=(160, 60),
-    )
+    # Helper to create the floating always-on-top alerts window (initially hidden)
+    def create_alerts_window():
+        return webview.create_window(
+            "RoomPing Pro Alerts",
+            _ALERT_INDEX,
+            js_api=api,
+            width=320,
+            height=120,
+            resizable=True,
+            on_top=True,
+            hidden=True,
+            min_size=(160, 60),
+        )
+
+    alerts_window = create_alerts_window()
+
+    # If the user closes the alerts window with the native red X, immediately
+    # create a new hidden one so the pin button can bring it back later.
+    def _on_alerts_closed():
+        nonlocal alerts_window
+        try:
+            alerts_window = create_alerts_window()
+            api.set_alerts_window(alerts_window)
+        except Exception:
+            pass
+
     try:
+        alerts_window.events.closed += _on_alerts_closed
         api.set_alerts_window(alerts_window)
     except Exception:
-        # Older Bridge implementations may not support this; fail soft.
+        # Older Bridge implementations or backends may not support events; fail soft.
         pass
 
     window = webview.create_window(
