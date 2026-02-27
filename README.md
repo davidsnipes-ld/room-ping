@@ -27,6 +27,21 @@ Your roommates list is stored next to the app and kept between runs.
 **Windows:** If the app window is blank, install [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (many PCs already have it).  
 **Linux:** Download **RoomPingPro-Linux.zip** from the release **Assets** (not the "Code" source zip).
 
+**macOS: App says it’s running but no window appears**  
+Unzip **RoomPingPro-macOS.zip** so you have a folder with **RoomPingPro.app** inside (do not run a .pkg — the release is only the .app). Then open **Terminal** and run (replace the path with where you put the app):
+
+```bash
+/Applications/RoomPingPro.app/Contents/MacOS/RoomPingPro
+```
+
+Or if the app is in your Downloads folder:
+
+```bash
+~/Downloads/RoomPingPro.app/Contents/MacOS/RoomPingPro
+```
+
+Any error message will appear in the terminal (e.g. missing library, architecture mismatch). If you see “damaged” or Gatekeeper, right‑click the .app → **Open** → **Open** once to allow it.
+
 ### Double‑click, pin to taskbar/dock, open at startup
 
 The downloaded app is a normal executable you can use like any other:
