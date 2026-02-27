@@ -1,6 +1,7 @@
 """
 Network discovery and UDP ping listen/send. Cross-platform: Windows, macOS, Linux.
 """
+import json
 import os
 import platform
 import re
@@ -12,6 +13,10 @@ import uuid
 
 # Shared port for UDP pings (must match in bridge.py when sending)
 DEFAULT_PORT = 5005
+# Port for discovery beacons (who's on the network with RoomPing Pro)
+DISCOVERY_PORT = 5006
+BEACON_INTERVAL = 4.0
+PEER_STALE_SECONDS = 15.0
 MAC_PATTERN = re.compile(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})")
 
 
@@ -131,6 +136,83 @@ class NetworkEngine:
             except (ValueError, IndexError):
                 pass
         return {"ips": ips, "subnets": subnets[:6], "port": self.port}
+
+    def get_broadcast_addresses(self):
+        """Return broadcast IPs for local and neighbouring /24s (e.g. 192.168.1.255, 192.168.0.255, 192.168.2.255)."""
+        try:
+            local_ips = socket.gethostbyname_ex(socket.gethostname())[2]
+        except socket.gaierror:
+            return []
+        ips = [ip for ip in local_ips if not ip.startswith("127.") and len(ip.split(".")) == 4]
+        seen = set()
+        out = []
+        for ip in ips:
+            parts = ip.split(".")
+            # Own subnet broadcast (e.g. 192.168.1.255)
+            broadcast = ".".join(parts[:-1]) + ".255"
+            if broadcast not in seen:
+                seen.add(broadcast)
+                out.append(broadcast)
+            # Neighbouring /24 subnets (e.g. 192.168.0.255, 192.168.2.255)
+            try:
+                third = int(parts[2])
+                for delta in (1, -1):
+                    neighbor = third + delta
+                    if 0 <= neighbor <= 255:
+                        neighbor_bcast = f"{parts[0]}.{parts[1]}.{neighbor}.255"
+                        if neighbor_bcast not in seen:
+                            seen.add(neighbor_bcast)
+                            out.append(neighbor_bcast)
+            except (ValueError, IndexError):
+                pass
+        # Cap to avoid spamming too many subnets if host has lots of interfaces
+        return out[:7]
+
+    def send_beacon_once(self, display_name, my_mac, my_ip, ping_port):
+        """Send one discovery beacon (JSON) to each broadcast address. Others on the LAN will see us."""
+        payload = json.dumps(
+            {
+                "type": "beacon",
+                "name": display_name or "Unknown",
+                "mac": my_mac or "",
+                "ip": my_ip or "",
+                "port": int(ping_port) if ping_port else DEFAULT_PORT,
+            }
+        ).encode("utf-8")
+        for broadcast in self.get_broadcast_addresses():
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                    s.sendto(payload, (broadcast, DISCOVERY_PORT))
+            except Exception as e:
+                print(f"Beacon send to {broadcast}: {e}")
+
+    def listen_beacon_forever(self, callback):
+        """Listen for UDP discovery beacons on DISCOVERY_PORT; call callback(peer_dict) for each. peer_dict has ip, name, mac, port."""
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            try:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(("", DISCOVERY_PORT))
+                print(f"Listening for discovery beacons on port {DISCOVERY_PORT}...")
+                while True:
+                    data, addr = s.recvfrom(1024)
+                    try:
+                        obj = json.loads(data.decode("utf-8"))
+                        if obj.get("type") != "beacon":
+                            continue
+                        peer = {
+                            "ip": obj.get("ip") or addr[0],
+                            "name": obj.get("name") or "Unknown",
+                            "mac": (obj.get("mac") or "").lower().replace("-", ":"),
+                            "port": int(obj.get("port") or DEFAULT_PORT),
+                        }
+                        if peer["mac"]:
+                            callback(peer)
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        # ignore malformed beacons
+                        pass
+            except Exception as e:
+                print(f"Beacon listener error: {e}")
 
     def _read_arp_for_mac(self, target_clean, arp_bin):
         """Run arp -a (or -an) and return IP if target MAC is in the table."""

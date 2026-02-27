@@ -18,6 +18,12 @@ def start_logic():
     api = Bridge()
     engine = NetworkEngine()
 
+    # Start discovery beacons and listener so we can find other RoomPing Pro users on the LAN
+    try:
+        api.start_discovery()
+    except Exception:
+        pass
+
     # Floating always-on-top alerts window (hidden by default, can be shown from main UI and on ping)
     alerts_window = webview.create_window(
         "RoomPing Pro Alerts",
