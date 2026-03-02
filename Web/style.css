@@ -1,6 +1,6 @@
 body {
-    background-color: #121212;
-    color: white;
+    background-color: var(--bg, #121212);
+    color: var(--text-main, #ffffff);
     font-family: 'Segoe UI', sans-serif;
     margin: 0;
     overflow-x: hidden;
@@ -55,27 +55,27 @@ body {
 
 header {
     padding: 20px;
-    background: #1f1f1f;
+    background: var(--bg-alt, #1f1f1f);
     text-align: center;
     border-bottom: 2px solid #333;
 }
 
-header span { color: #ff4b2b; }
+header span { color: var(--accent, #ff4b2b); }
 
 .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
 
 .my-profile-card {
-    background: #2a2a2a;
+    background: var(--card-bg, #2a2a2a);
     padding: 15px;
     border-radius: 12px;
     text-align: left;
-    border-left: 4px solid #ff4b2b;
+    border-left: 4px solid var(--accent, #ff4b2b);
     margin: 10px 0;
 }
-.profile-info h2 { margin: 0; font-size: 16px; color: #fff; }
-.profile-info code { color: #888; font-size: 11px; }
-.label { font-size: 10px; color: #ff4b2b; text-transform: uppercase; font-weight: bold; }
+.profile-info h2 { margin: 0; font-size: 16px; color: var(--text-main, #fff); }
+.profile-info code { color: var(--text-muted, #888); font-size: 11px; }
+.label { font-size: 10px; color: var(--accent, #ff4b2b); text-transform: uppercase; font-weight: bold; }
 
 .setting-item {
     display: flex;
@@ -106,6 +106,36 @@ header span { color: #ff4b2b; }
     color: #888;
 }
 
+.theme-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.theme-btn {
+    background: #222;
+    border: 1px solid #444;
+    color: #ddd;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.1s;
+}
+
+.theme-btn:hover {
+    background: #333;
+    border-color: #666;
+    transform: translateY(-1px);
+}
+
+.theme-btn.is-active {
+    background: var(--accent, #ff4b2b);
+    border-color: var(--accent, #ff4b2b);
+    color: #fff;
+}
+
 .card-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .chat-btn {
     background: none;
@@ -123,8 +153,8 @@ header span { color: #ff4b2b; }
 
 .test-btn {
     background: rgba(255, 75, 43, 0.1);
-    border: 1px solid #ff4b2b;
-    color: #ff4b2b;
+    border: 1px solid var(--accent, #ff4b2b);
+    color: var(--accent, #ff4b2b);
     font-size: 10px;
     padding: 2px 8px;
     border-radius: 4px;
@@ -135,7 +165,7 @@ header span { color: #ff4b2b; }
 }
 
 .test-btn:hover {
-    background: #ff4b2b;
+    background: var(--accent, #ff4b2b);
     color: white;
 }
 
@@ -162,7 +192,7 @@ header span { color: #ff4b2b; }
 .section-title {
     margin: 0 0 6px 0;
     font-size: 14px;
-    color: #ff4b2b;
+    color: var(--accent, #ff4b2b);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -178,7 +208,7 @@ header span { color: #ff4b2b; }
 }
 
 .discovered-card {
-    background: #252525;
+    background: var(--card-bg, #252525);
     border-radius: 10px;
     padding: 12px 15px;
     margin-bottom: 10px;
@@ -214,9 +244,9 @@ header span { color: #ff4b2b; }
 }
 
 .add-friend-btn:hover {
-    background: #ff4b2b;
+    background: var(--accent, #ff4b2b);
     color: white;
-    border-color: #ff4b2b;
+    border-color: var(--accent, #ff4b2b);
 }
 
 .add-friend-btn.is-friend {
@@ -227,7 +257,7 @@ header span { color: #ff4b2b; }
 }
 
 .card {
-    background: #252525;
+    background: var(--card-bg, #252525);
     border-radius: 10px;
     padding: 15px;
     margin-bottom: 15px;
@@ -287,7 +317,7 @@ header span { color: #ff4b2b; }
 }
 
 .ping-btn {
-    background: #ff4b2b;
+    background: var(--accent, #ff4b2b);
     border: none;
     color: white;
     padding: 8px 15px;
@@ -466,7 +496,7 @@ footer {
     flex-shrink: 0;
 }
 .console-resize-handle:hover {
-    background: #ff4b2b;
+    background: var(--accent, #ff4b2b);
 }
 .console-header {
     display: flex;
@@ -543,7 +573,7 @@ footer {
     top: 20px;
     left: 50%;
     transform: translateX(-50%);
-    background: #ff4b2b;
+    background: var(--accent, #ff4b2b);
     color: white;
     padding: 15px 30px;
     border-radius: 50px;
@@ -566,7 +596,7 @@ footer {
 }
 
 .modal {
-    background: #252525;
+    background: var(--modal-bg, #252525);
     padding: 30px;
     border-radius: 15px;
     width: 300px;
@@ -589,7 +619,7 @@ footer {
     margin-top: 20px;
 }
 
-.save-btn { background: #ff4b2b; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+.save-btn { background: var(--accent, #ff4b2b); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
 .cancel-btn { background: transparent; color: #888; border: none; cursor: pointer; }
 
 /* Chat modal */
@@ -647,7 +677,7 @@ footer {
 }
 .chat-msg.out {
     align-self: flex-end;
-    background: #ff4b2b;
+    background: var(--accent, #ff4b2b);
     color: #fff;
     border-bottom-right-radius: 4px;
 }
@@ -666,7 +696,7 @@ footer {
     padding: 10px 12px;
 }
 .send-chat-btn {
-    background: #ff4b2b;
+    background: var(--accent, #ff4b2b);
     color: white;
     border: none;
     padding: 10px 16px;
@@ -699,7 +729,7 @@ footer {
 .create-room-friend:hover { background: #252525; }
 .create-room-friend input { width: auto; margin: 0; }
 .room-card {
-    background: #252525;
+    background: var(--card-bg, #252525);
     border-radius: 10px;
     padding: 12px 15px;
     margin-bottom: 10px;
@@ -711,7 +741,7 @@ footer {
 .room-card .room-name { font-weight: 600; margin: 0; }
 .room-card .room-members { font-size: 11px; color: #888; margin: 2px 0 0; }
 .room-open-btn {
-    background: #ff4b2b;
+    background: var(--accent, #ff4b2b);
     border: none;
     color: white;
     padding: 6px 14px;

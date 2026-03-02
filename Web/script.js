@@ -41,8 +41,13 @@ function appendDebugLog(label, message, type) {
         line.innerHTML = '<span class="console-time">[' + escapeHtml(time) + ']</span> ' +
             (label ? '<span class="console-label">[' + escapeHtml(label) + ']</span> ' : '') +
             '<span class="console-msg">' + escapeHtml(message) + '</span>';
-        content.appendChild(line);
-        content.scrollTop = content.scrollHeight;
+        // Newest at the top: insert at the beginning
+        if (content.firstChild) {
+            content.insertBefore(line, content.firstChild);
+        } else {
+            content.appendChild(line);
+        }
+        content.scrollTop = 0;
     }
 }
 
@@ -94,7 +99,9 @@ function rerenderConsoleFromEntries() {
     const content = document.getElementById('console-content');
     if (!content || !isConsoleEnabled()) return;
     content.innerHTML = '';
-    for (const e of consoleLogEntries) {
+    // Render newest first
+    for (let i = consoleLogEntries.length - 1; i >= 0; i--) {
+        const e = consoleLogEntries[i];
         const line = document.createElement('div');
         line.className = 'console-line log-' + (e.type === 'ok' ? 'ok' : e.type === 'fail' ? 'fail' : 'info');
         line.innerHTML = '<span class="console-time">[' + escapeHtml(e.time) + ']</span> ' +
@@ -102,7 +109,7 @@ function rerenderConsoleFromEntries() {
             '<span class="console-msg">' + escapeHtml(e.message) + '</span>';
         content.appendChild(line);
     }
-    content.scrollTop = content.scrollHeight;
+    content.scrollTop = 0;
 }
 
 function openIpModal(user) {
@@ -198,6 +205,18 @@ function attachClickHandlers() {
     byId('btn-create-room-save', createRoomFromModal);
     const chatInput = document.getElementById('chat-input');
     if (chatInput) chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage(); });
+    const themeButtons = document.querySelectorAll('.theme-btn');
+    themeButtons.forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const theme = btn.dataset.theme;
+            applyTheme(theme);
+            if (window.pywebview?.api?.set_theme) {
+                try {
+                    await pywebview.api.set_theme(theme);
+                } catch (e) {}
+            }
+        });
+    });
     attachConsoleResizeHandle();
 }
 
@@ -222,6 +241,25 @@ function attachConsoleResizeHandle() {
         }
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
+    });
+}
+
+function applyTheme(theme) {
+    const body = document.body;
+    if (!body) return;
+    const themes = ['dark', 'day', 'ocean', 'forest'];
+    for (const t of themes) {
+        body.classList.remove('theme-' + t);
+    }
+    if (themes.includes(theme)) {
+        body.classList.add('theme-' + theme);
+    } else {
+        body.classList.add('theme-dark');
+        theme = 'dark';
+    }
+    const buttons = document.querySelectorAll('.theme-btn');
+    buttons.forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.theme === theme);
     });
 }
 
@@ -274,6 +312,21 @@ async function initApp() {
         const cb = document.getElementById('console-enabled-toggle');
         if (cb) cb.checked = isConsoleEnabled();
         applyConsoleEnabledUI();
+        // Apply theme from settings as early as possible
+        if (window.pywebview?.api?.get_settings) {
+            try {
+                const settings = await pywebview.api.get_settings();
+                if (settings && settings.theme) {
+                    applyTheme(settings.theme);
+                } else {
+                    applyTheme('dark');
+                }
+            } catch (e) {
+                applyTheme('dark');
+            }
+        } else {
+            applyTheme('dark');
+        }
     } catch (e) {}
     try {
         if (window.pywebview?.api?.get_app_version) {
@@ -834,6 +887,9 @@ async function loadSettingsIntoModal() {
         const settings = await pywebview.api.get_settings();
         const displayInput = document.getElementById('display-name-input');
         if (displayInput) displayInput.value = (settings.display_name || '').trim();
+        if (settings.theme) {
+            applyTheme(settings.theme);
+        }
     } catch (e) {}
 }
 

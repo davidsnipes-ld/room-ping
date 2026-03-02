@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="themes.css">
     <title>RoomPing Pro</title>
 </head>
 <body>
@@ -150,6 +151,16 @@
                 <div class="setting-item">
                     <label>Show Console Log</label>
                     <input type="checkbox" id="console-enabled-toggle" onchange="toggleConsoleEnabled()">
+                </div>
+                <div class="setting-item setting-item-block">
+                    <label>Theme</label>
+                    <div class="theme-options">
+                        <button type="button" class="theme-btn" data-theme="dark">Dark</button>
+                        <button type="button" class="theme-btn" data-theme="day">Day</button>
+                        <button type="button" class="theme-btn" data-theme="ocean">Ocean</button>
+                        <button type="button" class="theme-btn" data-theme="forest">Forest</button>
+                    </div>
+                    <p class="setting-hint">Pick a color scheme for the app. This only affects your device.</p>
                 </div>
                 <div class="firewall-help">
                     <strong>Pings not working?</strong> Allow this app in your firewall for <strong>Private</strong> networks (UDP ports 5005, 5006, 5007). Windows: Security → Firewall → Allow an app. If you clicked Block by mistake, add RoomPing Pro there and check Private.

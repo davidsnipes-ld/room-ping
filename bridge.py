@@ -64,7 +64,17 @@ class Bridge:
             shutil.copy(example, self.settings_file)
         else:
             with open(self.settings_file, "w") as f:
-                json.dump({"users": [], "display_name": "", "alerts_pinned": False, "rooms": []}, f, indent=4)
+                json.dump(
+                    {
+                        "users": [],
+                        "display_name": "",
+                        "alerts_pinned": False,
+                        "rooms": [],
+                        "theme": "dark",
+                    },
+                    f,
+                    indent=4,
+                )
 
     def set_alerts_window(self, window):
         """Hook for main.py to provide the floating alerts window instance."""
@@ -113,8 +123,21 @@ class Bridge:
                 s.setdefault("display_name", "")
                 s.setdefault("alerts_pinned", False)
                 s.setdefault("rooms", [])
+                s.setdefault("theme", "dark")
                 return s
-        return {"users": [], "display_name": "", "alerts_pinned": False, "rooms": []}
+        return {"users": [], "display_name": "", "alerts_pinned": False, "rooms": [], "theme": "dark"}
+
+    def set_theme(self, theme):
+        """Persist UI theme preference (e.g. dark, day, ocean, forest)."""
+        theme = (theme or "").strip().lower()
+        allowed = {"dark", "day", "ocean", "forest"}
+        if theme not in allowed:
+            return {"status": "error", "message": "Unknown theme."}
+        settings = self.get_settings()
+        settings["theme"] = theme
+        with open(self.settings_file, "w") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "success", "theme": theme}
 
     def _mac_norm(self, mac):
         return (mac or "").lower().replace("-", ":")
