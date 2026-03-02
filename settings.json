@@ -29,7 +29,7 @@
             "name": "Levi\u2019s Laptop",
             "mac": "0c:e4:41:ea:b7:0a",
             "ip": "192.168.1.107",
-            "last_check": "Sent to 192.168.1.107 (saved IP). No confirmation \u2014 their app may be closed or firewall blocking UDP 5005."
+            "last_check": "Using saved IP 192.168.1.107. Ready to ping (no scan)."
         }
     ],
     "display_name": "David S.",
