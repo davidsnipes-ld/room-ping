@@ -323,34 +323,86 @@ header span { color: #ff4b2b; }
     color: #fff;
 }
 
-/* Friends layout: horizontal tabs when wide, stacked when narrow */
+/* Friends layout: horizontal tabs when wide by default */
 #friends-list {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
 }
 
-@media (max-width: 480px) {
-    #friends-list {
-        display: block;
-    }
-    .card {
-        padding: 8px 10px;
-        margin-bottom: 8px;
-    }
-    /* Compact view: show just initial + envelope; hide extra text/buttons */
-    .info h3,
-    .info .card-mac,
-    .info .card-ip,
-    .info .card-last-check {
-        display: none;
-    }
-    .ping-btn,
-    .ip-btn,
-    .conn-test-btn,
-    .delete-btn {
-        display: none;
-    }
+/* Minimal mode: only friend tabs remain, rest of UI hidden */
+body.minimal-mode header,
+body.minimal-mode #on-the-network,
+body.minimal-mode #rooms-section,
+body.minimal-mode footer,
+body.minimal-mode #console-wrap {
+    display: none !important;
+}
+
+body.minimal-mode .main-scroll {
+    padding: 8px;
+}
+
+body.minimal-mode #friends-section {
+    margin: 0;
+}
+
+body.minimal-mode #friends-section .section-title,
+body.minimal-mode #friends-section .section-hint {
+    display: none;
+}
+
+body.minimal-mode #friends-list {
+    gap: 10px;
+}
+
+body.minimal-mode.minimal-vertical #friends-list {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+body.minimal-mode.minimal-horizontal #friends-list {
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+body.minimal-mode .card {
+    padding: 6px 12px;
+    margin: 0;
+    border-radius: 6px;
+    min-width: 80px;
+    max-width: 160px;
+}
+
+/* Minimal: show only initial + envelope (and unread dot), hide details/buttons */
+body.minimal-mode .info h3,
+body.minimal-mode .info .card-mac,
+body.minimal-mode .info .card-ip,
+body.minimal-mode .info .card-last-check,
+body.minimal-mode .ping-btn,
+body.minimal-mode .ip-btn,
+body.minimal-mode .conn-test-btn,
+body.minimal-mode .delete-btn {
+    display: none;
+}
+
+body.minimal-mode .status {
+    margin-right: 4px;
+    width: 10px;
+    height: 10px;
+}
+
+body.minimal-mode .friend-initial {
+    width: 28px;
+    height: 28px;
+    font-size: 15px;
+    margin-right: 4px;
+}
+
+body.minimal-mode .card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 footer {

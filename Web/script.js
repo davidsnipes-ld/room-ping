@@ -225,6 +225,43 @@ function attachConsoleResizeHandle() {
     });
 }
 
+function updateLayoutMode() {
+    const body = document.body;
+    if (!body) return;
+    const w = window.innerWidth || document.documentElement.clientWidth || 0;
+    const h = window.innerHeight || document.documentElement.clientHeight || 0;
+    // Minimal mode for very skinny or very short windows:
+    // - skinny & tall (vertical tab strip)
+    // - short & wide (horizontal tab strip)
+    const isVeryNarrow = w <= 260;
+    const isVeryShort = h <= 220;
+    if (!isVeryNarrow && !isVeryShort) {
+        body.classList.remove('minimal-mode', 'minimal-vertical', 'minimal-horizontal');
+        return;
+    }
+    body.classList.add('minimal-mode');
+    if (isVeryNarrow && !isVeryShort) {
+        // Tall skinny column
+        body.classList.add('minimal-vertical');
+        body.classList.remove('minimal-horizontal');
+    } else if (isVeryShort && !isVeryNarrow) {
+        // Short wide bar
+        body.classList.add('minimal-horizontal');
+        body.classList.remove('minimal-vertical');
+    } else {
+        // Both tiny; choose orientation by shape
+        if (h >= w) {
+            body.classList.add('minimal-vertical');
+            body.classList.remove('minimal-horizontal');
+        } else {
+            body.classList.add('minimal-horizontal');
+            body.classList.remove('minimal-vertical');
+        }
+    }
+}
+
+window.addEventListener('resize', updateLayoutMode);
+
 // --- INITIALIZATION ---
 window.addEventListener('pywebviewready', initApp);
 
@@ -261,6 +298,7 @@ async function initApp() {
         setInterval(refreshDiscovered, 3000);
     } catch (e) {}
     appendDebugLog('', 'Ready. Use Console and discovery to see connection and ping details.', 'info');
+    updateLayoutMode();
 }
 
 async function fetchProfile(retries) {
