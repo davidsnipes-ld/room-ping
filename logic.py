@@ -117,7 +117,15 @@ class NetworkEngine:
             local_ips = socket.gethostbyname_ex(socket.gethostname())[2]
         except socket.gaierror:
             return {"ips": [], "subnets": [], "port": self.port}
-        ips = [ip for ip in local_ips if not ip.startswith("127.") and len(ip.split(".")) == 4]
+        # Ignore loopback and link-local self-assigned ranges (169.254.x.x) when choosing
+        # candidate IPs and subnets. Devices with only a 169.254 address generally cannot
+        # be reached reliably from other peers on the LAN, and including them can confuse
+        # discovery and diagnostics.
+        ips = [
+            ip
+            for ip in local_ips
+            if len(ip.split(".")) == 4 and not ip.startswith("127.") and not ip.startswith("169.254.")
+        ]
         seen = set()
         subnets = []
         for ip in ips:
@@ -145,7 +153,11 @@ class NetworkEngine:
             local_ips = socket.gethostbyname_ex(socket.gethostname())[2]
         except socket.gaierror:
             return []
-        ips = [ip for ip in local_ips if not ip.startswith("127.") and len(ip.split(".")) == 4]
+        ips = [
+            ip
+            for ip in local_ips
+            if len(ip.split(".")) == 4 and not ip.startswith("127.") and not ip.startswith("169.254.")
+        ]
         seen = set()
         out = []
         for ip in ips:
@@ -263,7 +275,8 @@ class NetworkEngine:
 
             # Pass 1: broadcast ping, then read ARP (fast but Windows often doesn't reply to broadcast)
             for ip in local_ips:
-                if ip.startswith("127."):
+                # Skip loopback and link-local self-assigned ranges
+                if ip.startswith("127.") or ip.startswith("169.254."):
                     continue
                 parts = ip.split(".")
                 if len(parts) != 4:
@@ -284,7 +297,8 @@ class NetworkEngine:
             # so devices on different subnets (same router, different AP) can find each other by MAC
             prefixes = []
             for ip in local_ips:
-                if ip.startswith("127.") or len(ip.split(".")) != 4:
+                # Skip loopback and link-local self-assigned ranges
+                if ip.startswith("127.") or ip.startswith("169.254.") or len(ip.split(".")) != 4:
                     continue
                 parts = ip.split(".")
                 p = ".".join(parts[:-1]) + "."

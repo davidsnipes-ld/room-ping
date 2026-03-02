@@ -245,6 +245,11 @@ async function initApp() {
             if (label && info && info.version) {
                 label.textContent = 'v' + info.version;
             }
+            appendDebugLog(
+                '',
+                'RoomPing Pro v' + (info?.version || '?') + ' on ' + (navigator.platform || navigator.userAgent || ''),
+                'info'
+            );
         }
     } catch (e) {}
     appendDebugLog('', 'App starting…', 'info');
@@ -350,6 +355,61 @@ async function deleteFriend(event, mac) {
     }
 }
 
+async function runReachabilityCheck(user, statusEl, ipEl, diagEl, options = {}) {
+    const manual = !!options.manual;
+    if (!window.pywebview?.api?.get_reachability_and_ip) return;
+    try {
+        const savedIp = manual ? null : (user.ip || null);
+        appendDebugLog(
+            user.name,
+            (manual ? 'Manual test: ' : '') +
+                (savedIp ? 'Using saved IP ' + savedIp + '…' : 'Checking network for MAC ' + user.mac + '…'),
+            'info'
+        );
+        const result = await pywebview.api.get_reachability_and_ip(user.mac, user.name, savedIp);
+        if (result.ip) {
+            user.ip = result.ip;
+        }
+        if (statusEl?.parentNode) {
+            statusEl.className = 'status ' + (result.reachable ? 'online' : 'offline');
+            statusEl.title = result.reachable
+                ? 'Online – we resolved their IP from MAC'
+                : 'Offline – could not find this MAC on the network. Same WiFi? Same subnet? Try refresh.';
+        }
+        if (ipEl && ipEl.parentNode) {
+            if (result.ip) {
+                ipEl.textContent = 'IP: ' + result.ip;
+                ipEl.style.display = '';
+            } else {
+                ipEl.style.display = 'none';
+            }
+        }
+        if (diagEl) {
+            const msg = (result.diagnostic || '').trim();
+            if (msg) {
+                diagEl.textContent = msg;
+                diagEl.style.display = '';
+            }
+        }
+        if (result.diagnostic) {
+            appendDebugLog(user.name, result.diagnostic, result.reachable ? 'ok' : 'fail');
+        }
+        if (manual) {
+            showToast(result.diagnostic || 'Connection test finished.', result.reachable ? 'success' : 'error');
+        }
+    } catch (err) {
+        if (statusEl?.parentNode) {
+            statusEl.className = 'status offline';
+            statusEl.title = 'Check failed';
+        }
+        if (ipEl) ipEl.style.display = 'none';
+        appendDebugLog(user.name, 'Check failed: ' + (err.message || 'error'), 'fail');
+        if (manual) {
+            showToast('Connection test failed.', 'error');
+        }
+    }
+}
+
 async function loadFriends() {
     const friendsList = document.getElementById('friends-list');
     const settings = await pywebview.api.get_settings();
@@ -364,28 +424,40 @@ async function loadFriends() {
     for (const user of users) {
         const card = document.createElement('div');
         card.className = 'card';
+        card.dataset.peerKey = dmPeerKey(user.mac);
         card.dataset.mac = user.mac;
+        // Helpful tooltip for compact mode: click = ping, envelope = message
+        if (user.name) {
+            card.title = `${user.name} — click to ping, envelope to message`;
+        }
         card.addEventListener('click', (e) => {
             if (e.target.closest('.delete-btn') || e.target.closest('.ip-btn') || e.target.closest('.chat-btn')) return;
             pingFriend(user.mac, user.name);
         });
         const storedIp = user.ip ? ('IP: ' + user.ip) : '';
+        const initialSrc = (user.name && user.name.trim()) || (user.mac && user.mac.trim()) || '?';
+        const initial = initialSrc.charAt(0).toUpperCase();
         card.innerHTML = `
     <div class="status unknown" title="Checking..."></div>
+    <div class="friend-initial">${escapeHtml(initial)}</div>
     <div class="info">
         <h3>${escapeHtml(user.name)}</h3>
         <p class="card-mac">${user.mac}</p>
         <p class="card-ip" style="${storedIp ? '' : 'display:none;'}">${storedIp}</p>
+        <p class="card-last-check" style="display:none;"></p>
     </div>
     <div class="card-actions">
+        <span class="unread-dot" style="display:none;" title="New messages"></span>
         <button class="chat-btn" type="button" title="Open chat">💬</button>
         <button class="ping-btn" type="button">PING</button>
         <button class="ip-btn" type="button" title="View or edit the IP we have stored for this MAC">IP</button>
+        <button class="conn-test-btn" type="button" title="Test connection">TEST</button>
         <button class="delete-btn" type="button">🗑️</button>
     </div>
 `;
         const statusEl = card.querySelector('.status');
         const ipEl = card.querySelector('.card-ip');
+        const diagEl = card.querySelector('.card-last-check');
         card.querySelector('.delete-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             deleteFriend(e, user.mac);
@@ -397,6 +469,15 @@ async function loadFriends() {
                 openIpModal(user);
             });
         }
+        if (diagEl) {
+            const msg = (user.last_check || '').trim();
+            if (msg) {
+                diagEl.textContent = msg;
+                diagEl.style.display = '';
+            } else {
+                diagEl.style.display = 'none';
+            }
+        }
         const chatBtn = card.querySelector('.chat-btn');
         if (chatBtn) {
             chatBtn.addEventListener('click', (e) => {
@@ -404,38 +485,18 @@ async function loadFriends() {
                 openChatModal(dmPeerKey(user.mac), user.name, { friendMac: user.mac });
             });
         }
+        const testBtn = card.querySelector('.conn-test-btn');
+        if (testBtn) {
+            testBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                runReachabilityCheck(user, statusEl, ipEl, diagEl, { manual: true });
+            });
+        }
         friendsList.appendChild(card);
 
         // Resolve reachability and IP in one scan; update status light and show IP under name; log to debug panel
         if (window.pywebview && window.pywebview.api && window.pywebview.api.get_reachability_and_ip) {
-            try {
-                appendDebugLog(user.name, user.ip ? 'Using saved IP for ' + user.name + '…' : 'Checking network for MAC ' + user.mac + '…', 'info');
-                const result = await pywebview.api.get_reachability_and_ip(user.mac, user.name, user.ip || null);
-                if (statusEl.parentNode) {
-                    statusEl.className = 'status ' + (result.reachable ? 'online' : 'offline');
-                    statusEl.title = result.reachable
-                        ? 'Online – we resolved their IP from MAC'
-                        : 'Offline – could not find this MAC on the network. Same WiFi? Same subnet? Try refresh.';
-                }
-                if (ipEl && ipEl.parentNode) {
-                    if (result.ip) {
-                        ipEl.textContent = 'IP: ' + result.ip;
-                        ipEl.style.display = '';
-                    } else {
-                        ipEl.style.display = 'none';
-                    }
-                }
-                if (result.diagnostic) {
-                    appendDebugLog(user.name, result.diagnostic, result.reachable ? 'ok' : 'fail');
-                }
-            } catch (err) {
-                if (statusEl.parentNode) {
-                    statusEl.className = 'status offline';
-                    statusEl.title = 'Check failed';
-                }
-                if (ipEl) ipEl.style.display = 'none';
-                appendDebugLog(user.name, 'Check failed: ' + (err.message || 'error'), 'fail');
-            }
+            runReachabilityCheck(user, statusEl, ipEl, diagEl, { manual: false });
         } else {
             statusEl.className = 'status offline';
             statusEl.title = 'Unknown';
@@ -466,6 +527,17 @@ async function refreshDiscovered() {
                 </div>
                 ${isFriend ? '<span class="add-friend-btn is-friend">Friend</span>' : '<button type="button" class="add-friend-btn">Add as friend</button>'}
             `;
+            if (isLinkLocalIp(peer.ip)) {
+                const statusDot = card.querySelector('.status');
+                if (statusDot) {
+                    statusDot.title = 'Self-assigned IP (169.254.x.x). Ask them to reconnect Wi‑Fi so they get a normal address like 192.168.x.x.';
+                }
+                appendDebugLog(
+                    peer.name || '',
+                    `Peer ${peer.mac} has link-local IP ${peer.ip} (self-assigned). Router is not giving them a normal LAN address; pings from others may fail until they reconnect.`,
+                    'fail'
+                );
+            }
             if (!isFriend) {
                 const btn = card.querySelector('.add-friend-btn');
                 btn.addEventListener('click', (e) => { e.stopPropagation(); addFriendFromDiscovery(peer); });
@@ -487,6 +559,40 @@ async function addFriendFromDiscovery(peer) {
     showToast(`Added ${peer.name} as a friend.`, 'success');
     await loadFriends();
     refreshDiscovered();
+}
+
+function isLinkLocalIp(ip) {
+    return typeof ip === 'string' && ip.startsWith('169.254.');
+}
+
+function markUnread(peerKey) {
+    if (!peerKey) return;
+    // Friend cards
+    const friendCard = document.querySelector('.card[data-peer-key="' + peerKey + '"]');
+    if (friendCard) {
+        const dot = friendCard.querySelector('.unread-dot');
+        if (dot) dot.style.display = '';
+    }
+    // Room cards
+    const roomCard = document.querySelector('.room-card[data-peer-key="' + peerKey + '"]');
+    if (roomCard) {
+        const dot = roomCard.querySelector('.unread-dot');
+        if (dot) dot.style.display = '';
+    }
+}
+
+function clearUnread(peerKey) {
+    if (!peerKey) return;
+    const friendCard = document.querySelector('.card[data-peer-key="' + peerKey + '"]');
+    if (friendCard) {
+        const dot = friendCard.querySelector('.unread-dot');
+        if (dot) dot.style.display = 'none';
+    }
+    const roomCard = document.querySelector('.room-card[data-peer-key="' + peerKey + '"]');
+    if (roomCard) {
+        const dot = roomCard.querySelector('.unread-dot');
+        if (dot) dot.style.display = 'none';
+    }
 }
 
 // --- PEER KEY (must match bridge) ---
@@ -516,6 +622,8 @@ async function openChatModal(peerKey, title, options = {}) {
     await loadChatHistoryIntoModal(peerKey);
     inputEl.value = '';
     setTimeout(() => inputEl.focus(), 100);
+    // Opening the chat marks all messages as read for this peer
+    clearUnread(peerKey);
 }
 
 function closeChatModal() {
@@ -586,6 +694,7 @@ window.onIncomingMessage = function(peerKey, senderName, senderMac, text, roomId
     } else {
         const label = roomName || senderName || 'Someone';
         showToast('New message from ' + label, 'success');
+        markUnread(peerKey);
     }
 };
 
@@ -598,13 +707,17 @@ async function loadRooms() {
     for (const room of rooms) {
         const card = document.createElement('div');
         card.className = 'room-card';
+        card.dataset.peerKey = roomPeerKey(room.id);
         const memberCount = (room.members || []).length;
         card.innerHTML = `
             <div>
                 <h3 class="room-name">${escapeHtml(room.name || 'Room')}</h3>
                 <p class="room-members">${memberCount} member(s)</p>
             </div>
-            <button type="button" class="room-open-btn">Chat</button>
+            <div>
+                <span class="unread-dot" style="display:none;" title="New messages"></span>
+                <button type="button" class="room-open-btn">Chat</button>
+            </div>
         `;
         card.querySelector('.room-open-btn').addEventListener('click', () => {
             openChatModal(roomPeerKey(room.id), room.name || 'Room', { roomId: room.id, roomName: room.name });

@@ -246,13 +246,25 @@ class Bridge:
         saved_ip = (ip or "").strip()
         if saved_ip and self._looks_like_ip(saved_ip):
             self.update_user_ip(mac, saved_ip)
-            msg = f"Using saved IP {saved_ip}. Ready to ping (no scan)."
+            if saved_ip.startswith("169.254."):
+                msg = (
+                    f"Using saved IP {saved_ip} (link-local/self-assigned). "
+                    "They may not be reachable from other devices until their Wi‑Fi gets a normal IP."
+                )
+            else:
+                msg = f"Using saved IP {saved_ip}. Ready to ping (no scan)."
             self.update_user_diagnostic(mac, msg)
             return {"reachable": True, "ip": saved_ip, "diagnostic": msg}
         ip = self.engine.scan_network(mac, name or "")
         if ip:
             self.update_user_ip(mac, ip)  # save IP so we can ping without rescanning
-            msg = f"Found at {ip} and saved. Ready to ping."
+            if ip.startswith("169.254."):
+                msg = (
+                    f"Found at {ip} (link-local/self-assigned). "
+                    "Router did not give them a normal IP; pings from other devices may fail."
+                )
+            else:
+                msg = f"Found at {ip} and saved. Ready to ping."
             self.update_user_diagnostic(mac, msg)
             return {"reachable": True, "ip": ip, "diagnostic": msg}
         msg = (
