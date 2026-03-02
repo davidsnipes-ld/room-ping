@@ -68,6 +68,13 @@ def start_logic():
     )
 
     def on_ping_received(sender_ip):
+        """Handle an incoming PING. Return 'muted' if we are muted so the engine can send MUTED instead of PONG."""
+        try:
+            if api.is_muted():
+                # Do not surface any UI when muted; tell sender we're muted.
+                return "muted"
+        except Exception:
+            pass
         # Pass IP safely to JS (no injection)
         safe_ip = json.dumps(str(sender_ip))
         window.evaluate_js(f"showAlert({safe_ip})")

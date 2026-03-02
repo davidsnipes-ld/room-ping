@@ -16,7 +16,13 @@
         <header>
             <div class="header-top">
                 <h1>RoomPing Pro</h1>
-                <div style="display:flex; gap:4px;">
+                <div class="header-actions">
+                    <div class="mute-wrapper">
+                        <span class="mute-label">Mute</span>
+                        <button class="mute-switch" type="button" id="btn-mute-header" title="Mute notifications">
+                            <span class="mute-knob"></span>
+                        </button>
+                    </div>
                     <button class="icon-btn" type="button" id="btn-refresh-status" title="Refresh online status">🔄</button>
                     <button class="icon-btn" type="button" id="btn-alert-popout" title="Show floating alert window">📌</button>
                     <button class="icon-btn" type="button" id="btn-settings">⚙️</button>
@@ -147,6 +153,10 @@
                 <div class="setting-item">
                     <label>Audio Alerts</label>
                     <input type="checkbox" id="audio-toggle" checked onchange="toggleAudio()">
+                </div>
+                <div class="setting-item">
+                    <label>Mute notifications</label>
+                    <input type="checkbox" id="mute-toggle">
                 </div>
                 <div class="setting-item">
                     <label>Show Console Log</label>

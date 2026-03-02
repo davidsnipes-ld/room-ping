@@ -1,5 +1,6 @@
 // --- APP STATE ---
 let audioEnabled = true;
+let muteNotifications = false;
 const consoleLogEntries = [];
 const CONSOLE_ENABLED_KEY = 'roomping-console-enabled';
 const DEFAULT_CONSOLE_HEIGHT = 88;
@@ -217,6 +218,24 @@ function attachClickHandlers() {
             }
         });
     });
+    byId('mute-toggle', async () => {
+        const cb = document.getElementById('mute-toggle');
+        if (!cb || !window.pywebview?.api?.set_muted) return;
+        const muted = !!cb.checked;
+        applyMuteUI(muted);
+        try {
+            await pywebview.api.set_muted(muted);
+        } catch (e) {}
+    });
+    byId('btn-mute-header', async () => {
+        const newMuted = !muteNotifications;
+        applyMuteUI(newMuted);
+        if (window.pywebview?.api?.set_muted) {
+            try {
+                await pywebview.api.set_muted(newMuted);
+            } catch (e) {}
+        }
+    });
     attachConsoleResizeHandle();
 }
 
@@ -261,6 +280,16 @@ function applyTheme(theme) {
     buttons.forEach((btn) => {
         btn.classList.toggle('is-active', btn.dataset.theme === theme);
     });
+}
+
+function applyMuteUI(muted) {
+    muteNotifications = !!muted;
+    const cb = document.getElementById('mute-toggle');
+    if (cb) cb.checked = muteNotifications;
+    const body = document.body;
+    if (body) {
+        body.classList.toggle('muted-on', muteNotifications);
+    }
 }
 
 function updateLayoutMode() {
@@ -320,6 +349,9 @@ async function initApp() {
                     applyTheme(settings.theme);
                 } else {
                     applyTheme('dark');
+                }
+                if (settings && typeof settings.muted === 'boolean') {
+                    applyMuteUI(settings.muted);
                 }
             } catch (e) {
                 applyTheme('dark');
@@ -783,8 +815,10 @@ window.onIncomingMessage = function(peerKey, senderName, senderMac, text, roomId
     if (currentChatPeerKey === peerKey) {
         appendChatMessageToModal(peerKey, 'in', senderName, text, Date.now() / 1000);
     } else {
-        const label = roomName || senderName || 'Someone';
-        showToast('New message from ' + label, 'success');
+        if (!muteNotifications) {
+            const label = roomName || senderName || 'Someone';
+            showToast('New message from ' + label, 'success');
+        }
         markUnread(peerKey);
     }
 };
@@ -890,6 +924,9 @@ async function loadSettingsIntoModal() {
         if (settings.theme) {
             applyTheme(settings.theme);
         }
+        if (typeof settings.muted === 'boolean') {
+            applyMuteUI(settings.muted);
+        }
     } catch (e) {}
 }
 
@@ -948,6 +985,7 @@ function showToast(message, type) {
 
 // --- PYTHON CALLBACKS ---
 window.showAlert = function(senderIp) {
+    if (muteNotifications) return;
     showToast(`<strong>PING!</strong> From: ${senderIp}`, "success");
     if (audioEnabled) {
         const audio = document.getElementById('ping-sound');

@@ -71,6 +71,7 @@ class Bridge:
                         "alerts_pinned": False,
                         "rooms": [],
                         "theme": "dark",
+                        "muted": False,
                     },
                     f,
                     indent=4,
@@ -124,8 +125,16 @@ class Bridge:
                 s.setdefault("alerts_pinned", False)
                 s.setdefault("rooms", [])
                 s.setdefault("theme", "dark")
+                s.setdefault("muted", False)
                 return s
-        return {"users": [], "display_name": "", "alerts_pinned": False, "rooms": [], "theme": "dark"}
+        return {
+            "users": [],
+            "display_name": "",
+            "alerts_pinned": False,
+            "rooms": [],
+            "theme": "dark",
+            "muted": False,
+        }
 
     def set_theme(self, theme):
         """Persist UI theme preference (e.g. dark, day, ocean, forest)."""
@@ -138,6 +147,19 @@ class Bridge:
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=4)
         return {"status": "success", "theme": theme}
+
+    def set_muted(self, muted):
+        """Enable or disable local notifications (pings + message toasts) for this device."""
+        settings = self.get_settings()
+        settings["muted"] = bool(muted)
+        with open(self.settings_file, "w") as f:
+            json.dump(settings, f, indent=4)
+        return {"status": "success", "muted": settings["muted"]}
+
+    def is_muted(self):
+        """Return True if this device has muted notifications."""
+        settings = self.get_settings()
+        return bool(settings.get("muted"))
 
     def _mac_norm(self, mac):
         return (mac or "").lower().replace("-", ":")
@@ -298,7 +320,14 @@ class Bridge:
         return {"reachable": False, "ip": None, "diagnostic": msg}
 
     def _send_ping(self, target_ip, wait_for_pong_seconds=2.0):
-        """Send PING to target_ip; if receiver sends PONG back, return (True, True). Else (True, False) or (False, False) on send error."""
+        """Send PING to target_ip.
+
+        Returns (sent_ok, state) where state is one of:
+        - \"delivered\" – received PONG
+        - \"muted\"     – receiver replied MUTED (they have notifications muted)
+        - \"no_pong\"   – no reply within timeout
+        - \"error\"     – send error
+        """
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                 s.sendto(b"PING", (target_ip, DEFAULT_PORT))
@@ -306,12 +335,14 @@ class Bridge:
                 try:
                     data, _ = s.recvfrom(1024)
                     if data == b"PONG":
-                        return (True, True)
+                        return (True, "delivered")
+                    if data == b"MUTED":
+                        return (True, "muted")
                 except socket.timeout:
-                    pass
-                return (True, False)
+                    return (True, "no_pong")
+                return (True, "no_pong")
         except Exception:
-            return (False, False)
+            return (False, "error")
 
     def ping_user(self, mac, name):
         """Ping is always sent to an IP. MAC is only the signal to look up (or recall) that IP. Uses stored IP if we have it, else resolves MAC → IP and saves it."""
@@ -322,13 +353,24 @@ class Bridge:
 
         if mac_clean == my_mac or (name and name.lower() in my_hostname):
             self.update_user_ip(mac, "127.0.0.1")
-            sent, got_pong = self._send_ping("127.0.0.1")
+            sent, state = self._send_ping("127.0.0.1")
             if not sent:
                 self.update_user_diagnostic(mac, "Send failed. Check your firewall.")
-                return {"success": False, "your_ip": "", "subnets": [], "hint": "Send failed", "diagnostic": "Send failed. Check your firewall."}
-            msg = "Ping sent (self). Delivered!" if got_pong else "Ping sent (self). No confirmation."
+                return {
+                    "success": False,
+                    "your_ip": "",
+                    "subnets": [],
+                    "hint": "Send failed",
+                    "diagnostic": "Send failed. Check your firewall.",
+                }
+            if state == "muted":
+                msg = "Ping sent (self). You have muted notifications, so no alert will show."
+            elif state == "delivered":
+                msg = "Ping sent (self). Delivered!"
+            else:
+                msg = "Ping sent (self). No confirmation."
             self.update_user_diagnostic(mac, msg)
-            return {"success": True, "diagnostic": msg, "delivered": got_pong}
+            return {"success": True, "diagnostic": msg, "delivered": state == "delivered"}
 
         settings = self.get_settings()
         user = self._find_user_by_mac(settings, mac)
@@ -336,23 +378,33 @@ class Bridge:
 
         # 1) Send to stored IP if we have it (ping always goes to IP, never to MAC)
         if stored_ip:
-            sent, got_pong = self._send_ping(stored_ip)
+            sent, state = self._send_ping(stored_ip)
             if not sent:
-                self.update_user_diagnostic(mac, f"Found at {stored_ip} but send failed. Check your firewall (outbound UDP 5005).")
+                self.update_user_diagnostic(
+                    mac, f"Found at {stored_ip} but send failed. Check your firewall (outbound UDP 5005)."
+                )
             else:
-                if got_pong:
+                if state == "muted":
+                    msg = (
+                        f"Sent to {stored_ip}, but they have muted notifications. They won't see a pop-up, "
+                        "but you know the ping reached them."
+                    )
+                elif state == "delivered":
                     msg = f"Delivered to {stored_ip}! They got the ping."
                 else:
-                    msg = f"Sent to {stored_ip} (saved IP). No confirmation — their app may be closed or firewall blocking UDP 5005."
+                    msg = (
+                        f"Sent to {stored_ip} (saved IP). No confirmation — their app may be closed or firewall "
+                        "blocking UDP 5005."
+                    )
                 self.update_user_diagnostic(mac, msg)
-                return {"success": True, "diagnostic": msg, "delivered": got_pong}
+                return {"success": True, "diagnostic": msg, "delivered": state == "delivered"}
             # send failed; fall through to try resolving by MAC
 
         # 2) Resolve MAC → IP (MAC is only lookup key), then save IP and send ping to that IP
         target_ip = self.engine.scan_network(mac, name or "")
         if target_ip:
             self.update_user_ip(mac, target_ip)  # save IP for next time
-            sent, got_pong = self._send_ping(target_ip)
+            sent, state = self._send_ping(target_ip)
             if not sent:
                 msg = f"Found at {target_ip} but send failed. Check your firewall (outbound UDP 5005)."
                 self.update_user_diagnostic(mac, msg)
@@ -363,12 +415,20 @@ class Bridge:
                     "hint": msg,
                     "diagnostic": msg,
                 }
-            if got_pong:
+            if state == "muted":
+                msg = (
+                    f"Delivered to {target_ip}, but they have muted notifications. They won't see a pop-up, "
+                    "but you know the ping reached them. (IP saved.)"
+                )
+            elif state == "delivered":
                 msg = f"Delivered to {target_ip}! They got the ping. (IP saved.)"
             else:
-                msg = f"Sent to {target_ip} (IP saved). No confirmation — their app may be closed or firewall blocking UDP 5005."
+                msg = (
+                    f"Sent to {target_ip} (IP saved). No confirmation — their app may be closed or firewall "
+                    "blocking UDP 5005."
+                )
             self.update_user_diagnostic(mac, msg)
-            return {"success": True, "diagnostic": msg, "delivered": got_pong}
+            return {"success": True, "diagnostic": msg, "delivered": state == "delivered"}
 
         msg = "Could not find on network. Same WiFi? Their device on? Their firewall may block discovery (ping)."
         self.update_user_diagnostic(mac, msg)

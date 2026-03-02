@@ -333,7 +333,12 @@ class NetworkEngine:
         return None
 
     def listen_forever(self, callback):
-        """Listen for UDP PING packets; call callback(sender_ip); send PONG back so sender knows it was delivered."""
+        """Listen for UDP PING packets; call callback(sender_ip) and send a reply.
+
+        The callback may optionally return the string \"muted\" to signal that this device
+        has muted notifications; in that case we send a special MUTED reply instead of PONG
+        so the sender can surface a friendly diagnostic.
+        """
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             try:
                 s.bind(("", self.port))
@@ -341,13 +346,17 @@ class NetworkEngine:
                 while True:
                     data, addr = s.recvfrom(1024)
                     if data == b"PING":
+                        reply_mode = None
                         try:
-                            callback(addr[0])
+                            reply_mode = callback(addr[0])
                         except Exception as e:
                             print(f"Ping callback error: {e}")
                         # Send PONG back to sender so they get delivery confirmation
                         try:
-                            s.sendto(b"PONG", addr)
+                            if reply_mode == "muted":
+                                s.sendto(b"MUTED", addr)
+                            else:
+                                s.sendto(b"PONG", addr)
                         except Exception as e:
                             print(f"PONG send error: {e}")
             except Exception as e:
