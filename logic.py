@@ -17,6 +17,8 @@ DEFAULT_PORT = 5005
 DISCOVERY_PORT = 5006
 # Port for local messaging (friends and rooms)
 MESSAGE_PORT = 5007
+# Port for optional light trigger packets (IR integration)
+DEFAULT_LIGHT_PORT = 5008
 BEACON_INTERVAL = 4.0
 PEER_STALE_SECONDS = 15.0
 MAC_PATTERN = re.compile(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})")
@@ -182,17 +184,21 @@ class NetworkEngine:
         # Cap to avoid spamming too many subnets if host has lots of interfaces
         return out[:7]
 
-    def send_beacon_once(self, display_name, my_mac, my_ip, ping_port):
+    def send_beacon_once(self, display_name, my_mac, my_ip, ping_port, ir_port=None):
         """Send one discovery beacon (JSON) to each broadcast address. Others on the LAN will see us."""
-        payload = json.dumps(
-            {
-                "type": "beacon",
-                "name": display_name or "Unknown",
-                "mac": my_mac or "",
-                "ip": my_ip or "",
-                "port": int(ping_port) if ping_port else DEFAULT_PORT,
-            }
-        ).encode("utf-8")
+        beacon_obj = {
+            "type": "beacon",
+            "name": display_name or "Unknown",
+            "mac": my_mac or "",
+            "ip": my_ip or "",
+            "port": int(ping_port) if ping_port else DEFAULT_PORT,
+        }
+        if ir_port:
+            try:
+                beacon_obj["ir_port"] = int(ir_port)
+            except (TypeError, ValueError):
+                pass
+        payload = json.dumps(beacon_obj).encode("utf-8")
         for broadcast in self.get_broadcast_addresses():
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -224,7 +230,12 @@ class NetworkEngine:
                             "name": obj.get("name") or "Unknown",
                             "mac": (obj.get("mac") or "").lower().replace("-", ":"),
                             "port": int(obj.get("port") or DEFAULT_PORT),
+                            "ir_port": 0,
                         }
+                        try:
+                            peer["ir_port"] = int(obj.get("ir_port") or 0)
+                        except (TypeError, ValueError):
+                            peer["ir_port"] = 0
                         if peer["mac"]:
                             callback(peer)
                     except (json.JSONDecodeError, ValueError, TypeError):
@@ -370,6 +381,49 @@ class NetworkEngine:
                 s.sendto(payload, (target_ip, MESSAGE_PORT))
         except Exception as e:
             print(f"Message send to {target_ip}: {e}")
+
+    def send_light_trigger(self, target_ip, port=DEFAULT_LIGHT_PORT, payload=None):
+        """Send one light trigger packet to target_ip:port."""
+        try:
+            msg = {
+                "type": "light",
+                "payload": payload if payload is not None else "",
+            }
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.sendto(json.dumps(msg).encode("utf-8"), (target_ip, int(port or DEFAULT_LIGHT_PORT)))
+            return True
+        except Exception as e:
+            print(f"Light trigger send to {target_ip}:{port}: {e}")
+            return False
+
+    def listen_light_forever(self, port, callback):
+        """Listen for UDP light trigger packets and call callback(payload, sender_ip)."""
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            try:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                listen_port = int(port or DEFAULT_LIGHT_PORT)
+                s.bind(("", listen_port))
+                print(f"Listening for light triggers on port {listen_port}...")
+                while True:
+                    data, addr = s.recvfrom(2048)
+                    payload = ""
+                    try:
+                        obj = json.loads(data.decode("utf-8"))
+                        if obj.get("type") != "light":
+                            continue
+                        payload = obj.get("payload", "")
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        # Backward-compatible fallback for plain bytes payloads.
+                        try:
+                            payload = data.decode("utf-8", errors="ignore")
+                        except Exception:
+                            payload = ""
+                    try:
+                        callback(payload, addr[0])
+                    except Exception as e:
+                        print(f"Light callback error: {e}")
+            except Exception as e:
+                print(f"Light listener error: {e}")
 
     def listen_messages_forever(self, callback):
         """Listen for UDP messages on MESSAGE_PORT; call callback(parsed_dict) for each. parsed_dict has sender_name, sender_mac, sender_ip, text, room_id (optional), room_name (optional)."""

@@ -146,6 +146,33 @@ body.muted-on .mute-knob {
     color: #888;
 }
 
+.settings-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.settings-grid input[type="text"],
+.settings-grid input[type="number"] {
+    width: 100%;
+    padding: 8px 10px;
+    background: #121212;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 6px;
+    box-sizing: border-box;
+    margin: 0;
+}
+
+.setting-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #ccc;
+}
+
 .theme-options {
     display: flex;
     flex-wrap: wrap;
@@ -188,6 +215,17 @@ body.muted-on .mute-knob {
     border-radius: 4px;
 }
 .chat-btn:hover { opacity: 1; background: rgba(255, 75, 43, 0.2); }
+.light-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 2px 4px;
+    opacity: 0.85;
+    transition: 0.2s;
+    border-radius: 4px;
+}
+.light-btn:hover { opacity: 1; background: rgba(255, 206, 84, 0.2); }
 .delete-btn { background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.5; transition: 0.2s; }
 .delete-btn:hover { opacity: 1; transform: scale(1.1); }
 
@@ -452,6 +490,7 @@ body.minimal-mode .info .card-last-check,
 body.minimal-mode .ping-btn,
 body.minimal-mode .ip-btn,
 body.minimal-mode .conn-test-btn,
+body.minimal-mode .light-btn,
 body.minimal-mode .delete-btn {
     display: none;
 }

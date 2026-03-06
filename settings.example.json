@@ -1,1 +1,12 @@
-{"users": [], "display_name": "", "alerts_pinned": false, "rooms": []}
+{
+  "users": [],
+  "display_name": "",
+  "alerts_pinned": false,
+  "rooms": [],
+  "theme": "dark",
+  "muted": false,
+  "ir_enabled": false,
+  "ir_on_ping_script": "",
+  "ir_on_light_script": "",
+  "ir_light_port": 5008
+}

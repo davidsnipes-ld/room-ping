@@ -24,6 +24,10 @@ def start_logic():
         api.start_discovery()
     except Exception:
         pass
+    try:
+        api.ensure_light_listener_running()
+    except Exception:
+        pass
 
     # Helper to create the floating always-on-top alerts window (initially hidden)
     def create_alerts_window():
@@ -83,6 +87,11 @@ def start_logic():
             if api.is_alerts_pinned():
                 alerts_window.show()
                 alerts_window.evaluate_js(f"showPing({safe_ip})")
+        except Exception:
+            pass
+        # Optional IR integration: when enabled, run the configured on-ping command.
+        try:
+            api.run_ir_on_ping(sender_ip)
         except Exception:
             pass
 
