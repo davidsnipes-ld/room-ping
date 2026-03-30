@@ -21,9 +21,9 @@
     "users": [
         {
             "name": "Aaron",
-            "mac": "50:EB:F6:7F:BF:8D",
-            "last_check": "Could not find on network. Possible: different WiFi/subnet, their device off, or their firewall blocking discovery (ping).",
-            "ip": ""
+            "mac": "50:eb:f6:7f:bf:8d",
+            "ip": "",
+            "last_check": "Could not find on network. Possible: different WiFi/subnet, their device off, or their firewall blocking discovery (ping)."
         },
         {
             "name": "Levi\u2019s Laptop",
