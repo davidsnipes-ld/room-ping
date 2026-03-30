@@ -82,6 +82,11 @@ def start_logic():
         try:
             if api.is_alerts_pinned():
                 alerts_window.show()
+                try:
+                    # Reset pill back to a clean compact size on each incoming ping.
+                    alerts_window.resize(320, 120)
+                except Exception:
+                    pass
                 alerts_window.evaluate_js(f"showPing({safe_ip})")
         except Exception:
             pass

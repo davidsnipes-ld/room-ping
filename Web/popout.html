@@ -135,7 +135,21 @@
             }
         });
 
+        function resetPingPill() {
+            const box = document.getElementById('ping-box');
+            const main = document.getElementById('ping-main');
+            const meta = document.getElementById('ping-meta');
+            const label = box.querySelector('.ping-label');
+            label.classList.remove('flash');
+            label.textContent = 'Waiting for pings…';
+            box.style.borderColor = '#333';
+            box.style.boxShadow = 'none';
+            main.innerHTML = 'No pings yet';
+            meta.innerHTML = 'Leave this window open and on top to see alerts over other apps.';
+        }
+
         window.showPing = function (senderIp) {
+            resetPingPill();
             const box = document.getElementById('ping-box');
             const main = document.getElementById('ping-main');
             const meta = document.getElementById('ping-meta');

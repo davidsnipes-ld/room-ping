@@ -126,6 +126,7 @@ class Bridge:
                 s.setdefault("rooms", [])
                 s.setdefault("theme", "dark")
                 s.setdefault("muted", False)
+                self._dedupe_and_clean_users(s)
                 return s
         return {
             "users": [],
@@ -176,6 +177,36 @@ class Bridge:
         for u in settings.get("users", []):
             u.setdefault("ip", "")
 
+    def _dedupe_and_clean_users(self, settings):
+        """Keep one friend per MAC and remove accidental self entries."""
+        users = settings.get("users", [])
+        if not users:
+            return
+        my_mac = self.engine.get_my_mac().lower().replace("-", ":")
+        deduped = {}
+        ordered = []
+        for u in users:
+            mac_norm = self._mac_norm(u.get("mac"))
+            if not mac_norm or mac_norm == my_mac:
+                continue
+            if mac_norm not in deduped:
+                deduped[mac_norm] = {
+                    "name": (u.get("name") or "").strip(),
+                    "mac": mac_norm,
+                    "ip": (u.get("ip") or "").strip(),
+                    "last_check": (u.get("last_check") or "").strip(),
+                }
+                ordered.append(mac_norm)
+            else:
+                if (u.get("name") or "").strip():
+                    deduped[mac_norm]["name"] = (u.get("name") or "").strip()
+                if (u.get("ip") or "").strip():
+                    deduped[mac_norm]["ip"] = (u.get("ip") or "").strip()
+                if (u.get("last_check") or "").strip():
+                    deduped[mac_norm]["last_check"] = (u.get("last_check") or "").strip()
+        settings["users"] = [deduped[m] for m in ordered]
+        self._ensure_user_ip_slots(settings)
+
     def _looks_like_ip(self, s):
         """True if s looks like an IP address (so we don't store IP in the MAC field)."""
         if not s or not isinstance(s, str):
@@ -191,7 +222,7 @@ class Bridge:
 
     def add_user(self, user_data):
         """Add roommate by name + MAC; optional IP. Reject if MAC field looks like an IP."""
-        mac = (user_data.get("mac") or "").strip()
+        mac = self._mac_norm((user_data.get("mac") or "").strip())
         name = (user_data.get("name") or "").strip()
         optional_ip = (user_data.get("ip") or "").strip()
         if self._looks_like_ip(mac):
@@ -203,10 +234,19 @@ class Bridge:
             return {"status": "error", "message": "Name and MAC address are required."}
         if optional_ip and not self._looks_like_ip(optional_ip):
             return {"status": "error", "message": "If you enter an IP, it must be valid (e.g. 192.168.1.42)."}
+        if mac == self.engine.get_my_mac().lower().replace("-", ":"):
+            return {"status": "error", "message": "You cannot add yourself as a friend."}
         settings = self.get_settings()
         if "users" not in settings:
             settings["users"] = []
-        settings["users"].append({"name": name, "mac": mac, "ip": optional_ip if optional_ip else ""})
+        existing = self._find_user_by_mac(settings, mac)
+        if existing is not None:
+            existing["name"] = name
+            if optional_ip:
+                existing["ip"] = optional_ip
+        else:
+            settings["users"].append({"name": name, "mac": mac, "ip": optional_ip if optional_ip else ""})
+        self._dedupe_and_clean_users(settings)
         self._ensure_user_ip_slots(settings)
         with open(self.settings_file, "w") as f:
             json.dump(settings, f, indent=4)
@@ -494,11 +534,14 @@ class Bridge:
     def get_discovered_peers(self):
         """Return list of peers seen via beacon. Each has ip, name, mac, port, last_seen, online (bool). Excludes self."""
         my_mac = self.engine.get_my_mac().lower().replace("-", ":")
+        my_ips = set(self.engine.get_my_network_info().get("ips", []) or [])
         now = time.time()
         with self._discovery_lock:
             out = []
             for mac, p in list(self._discovered_peers.items()):
                 if mac == my_mac:
+                    continue
+                if p.get("ip") in my_ips:
                     continue
                 last = p.get("last_seen", 0)
                 online = (now - last) <= PEER_STALE_SECONDS

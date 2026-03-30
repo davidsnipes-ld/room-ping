@@ -410,7 +410,7 @@ body.minimal-mode #console-wrap {
 }
 
 body.minimal-mode .main-scroll {
-    padding: 8px;
+    padding: 4px;
 }
 
 body.minimal-mode #friends-section {
@@ -423,25 +423,28 @@ body.minimal-mode #friends-section .section-hint {
 }
 
 body.minimal-mode #friends-list {
-    gap: 10px;
+    gap: 6px;
+    margin: 0;
 }
 
 body.minimal-mode.minimal-vertical #friends-list {
     flex-direction: column;
     align-items: flex-start;
+    width: fit-content;
 }
 
 body.minimal-mode.minimal-horizontal #friends-list {
     flex-direction: row;
     align-items: flex-start;
+    width: fit-content;
 }
 
 body.minimal-mode .card {
-    padding: 6px 12px;
+    padding: 4px 8px;
     margin: 0;
-    border-radius: 6px;
-    min-width: 80px;
-    max-width: 160px;
+    border-radius: 5px;
+    min-width: 66px;
+    max-width: 140px;
 }
 
 /* Minimal: show only initial + envelope (and unread dot), hide details/buttons */
