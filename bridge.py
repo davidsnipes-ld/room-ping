@@ -1,8 +1,10 @@
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -14,6 +16,7 @@ from logic import (
     DEFAULT_PORT,
     DISCOVERY_PORT,
     MESSAGE_PORT,
+    DEFAULT_LIGHT_PORT,
     BEACON_INTERVAL,
     PEER_STALE_SECONDS,
 )
@@ -53,7 +56,25 @@ class Bridge:
         self._alerts_window = None
         self._discovered_peers = {}  # mac -> {ip, name, mac, port, last_seen}
         self._discovery_lock = threading.Lock()
+        self._light_listener_lock = threading.Lock()
+        self._light_listener_thread = None
+        self._light_listener_port = None
         self._ensure_settings_exists()
+        self.ensure_light_listener_running()
+
+    def _settings_defaults(self):
+        return {
+            "users": [],
+            "display_name": "",
+            "alerts_pinned": False,
+            "rooms": [],
+            "theme": "dark",
+            "muted": False,
+            "ir_enabled": False,
+            "ir_on_ping_script": "",
+            "ir_on_light_script": "",
+            "ir_light_port": DEFAULT_LIGHT_PORT,
+        }
 
     def _ensure_settings_exists(self):
         """Create settings.json from example or default on first run (plug-and-play)."""
@@ -64,18 +85,7 @@ class Bridge:
             shutil.copy(example, self.settings_file)
         else:
             with open(self.settings_file, "w") as f:
-                json.dump(
-                    {
-                        "users": [],
-                        "display_name": "",
-                        "alerts_pinned": False,
-                        "rooms": [],
-                        "theme": "dark",
-                        "muted": False,
-                    },
-                    f,
-                    indent=4,
-                )
+                json.dump(self._settings_defaults(), f, indent=4)
 
     def set_alerts_window(self, window):
         """Hook for main.py to provide the floating alerts window instance."""
@@ -120,6 +130,7 @@ class Bridge:
         if os.path.exists(self.settings_file):
             with open(self.settings_file, "r") as f:
                 s = json.load(f)
+<<<<<<< HEAD
                 original_users = json.dumps(s.get("users", []), sort_keys=True)
                 s.setdefault("users", [])
                 s.setdefault("display_name", "")
@@ -132,15 +143,12 @@ class Bridge:
                 if json.dumps(s.get("users", []), sort_keys=True) != original_users:
                     with open(self.settings_file, "w") as wf:
                         json.dump(s, wf, indent=4)
+=======
+                for k, v in self._settings_defaults().items():
+                    s.setdefault(k, v)
+>>>>>>> Experimental
                 return s
-        return {
-            "users": [],
-            "display_name": "",
-            "alerts_pinned": False,
-            "rooms": [],
-            "theme": "dark",
-            "muted": False,
-        }
+        return self._settings_defaults()
 
     def set_theme(self, theme):
         """Persist UI theme preference (e.g. dark, day, ocean, forest)."""
@@ -166,6 +174,115 @@ class Bridge:
         """Return True if this device has muted notifications."""
         settings = self.get_settings()
         return bool(settings.get("muted"))
+
+    def _parse_command(self, command):
+        cmd = (command or "").strip()
+        if not cmd:
+            return None
+        # Parse user command without shell interpolation.
+        return shlex.split(cmd, posix=(os.name != "nt"))
+
+    def _run_ir_script(self, command, payload=None, sender_ip=None):
+        cmd = (command or "").strip()
+        if not cmd:
+            return {"status": "skipped", "message": "No script configured."}
+        try:
+            args = self._parse_command(cmd)
+        except ValueError as e:
+            return {"status": "error", "message": f"Invalid command syntax: {e}"}
+        if not args:
+            return {"status": "error", "message": "Invalid command."}
+        try:
+            env = os.environ.copy()
+            env["ROOMPING_LIGHT_PAYLOAD"] = "" if payload is None else str(payload)
+            env["ROOMPING_SENDER_IP"] = "" if sender_ip is None else str(sender_ip)
+            subprocess.Popen(
+                args,
+                cwd=_project_dir(),
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=False,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" and hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            )
+            return {"status": "success", "message": "IR command started."}
+        except FileNotFoundError:
+            return {"status": "error", "message": f"Command not found: {args[0]}"}
+        except Exception as e:
+            return {"status": "error", "message": f"IR command failed: {e}"}
+
+    def _handle_light_trigger(self, payload, sender_ip):
+        settings = self.get_settings()
+        if not settings.get("ir_enabled"):
+            return
+        script = settings.get("ir_on_light_script", "")
+        result = self._run_ir_script(script, payload=payload, sender_ip=sender_ip)
+        if result.get("status") != "success":
+            print(f"IR light trigger error: {result.get('message')}")
+
+    def ensure_light_listener_running(self):
+        settings = self.get_settings()
+        if not settings.get("ir_enabled"):
+            return {"status": "skipped", "message": "IR disabled"}
+        try:
+            port = int(settings.get("ir_light_port") or DEFAULT_LIGHT_PORT)
+        except (TypeError, ValueError):
+            port = DEFAULT_LIGHT_PORT
+        with self._light_listener_lock:
+            if self._light_listener_thread and self._light_listener_thread.is_alive() and self._light_listener_port == port:
+                return {"status": "success", "message": f"Listener already active on {port}"}
+
+            def _listener():
+                self.engine.listen_light_forever(port, self._handle_light_trigger)
+
+            self._light_listener_thread = threading.Thread(target=_listener, daemon=True)
+            self._light_listener_port = port
+            self._light_listener_thread.start()
+        return {"status": "success", "message": f"Started IR listener on {port}"}
+
+    def set_ir_settings(self, data):
+        settings = self.get_settings()
+        settings["ir_enabled"] = bool(data.get("ir_enabled"))
+        settings["ir_on_ping_script"] = (data.get("ir_on_ping_script") or "").strip()
+        settings["ir_on_light_script"] = (data.get("ir_on_light_script") or "").strip()
+        try:
+            port = int(data.get("ir_light_port") or DEFAULT_LIGHT_PORT)
+        except (TypeError, ValueError):
+            port = DEFAULT_LIGHT_PORT
+        settings["ir_light_port"] = port
+        with open(self.settings_file, "w") as f:
+            json.dump(settings, f, indent=4)
+        if settings["ir_enabled"]:
+            self.ensure_light_listener_running()
+        return {"status": "success", "settings": settings}
+
+    def run_ir_on_ping(self, sender_ip=None):
+        settings = self.get_settings()
+        if not settings.get("ir_enabled"):
+            return {"status": "skipped", "message": "IR disabled"}
+        script = settings.get("ir_on_ping_script", "")
+        return self._run_ir_script(script, payload="", sender_ip=sender_ip)
+
+    def test_ir_light_script(self):
+        settings = self.get_settings()
+        if not settings.get("ir_enabled"):
+            return {"status": "error", "message": "Enable IR first."}
+        script = settings.get("ir_on_light_script", "")
+        return self._run_ir_script(script, payload="test", sender_ip="127.0.0.1")
+
+    def trigger_remote_light(self, target_ip, payload=None):
+        ip = (target_ip or "").strip()
+        if not self._looks_like_ip(ip):
+            return {"status": "error", "message": "Target IP is required to trigger light."}
+        settings = self.get_settings()
+        try:
+            port = int(settings.get("ir_light_port") or DEFAULT_LIGHT_PORT)
+        except (TypeError, ValueError):
+            port = DEFAULT_LIGHT_PORT
+        ok = self.engine.send_light_trigger(ip, port=port, payload=payload)
+        if ok:
+            return {"status": "success", "message": f"Light trigger sent to {ip}:{port}."}
+        return {"status": "error", "message": f"Failed to send light trigger to {ip}:{port}."}
 
     def _mac_norm(self, mac):
         return (mac or "").lower().replace("-", ":")
@@ -531,7 +648,14 @@ class Bridge:
                     net = self.engine.get_my_network_info()
                     ips = net.get("ips") or []
                     my_ip = ips[0] if ips else ""
-                    self.engine.send_beacon_once(display_name, mac, my_ip, net.get("port", DEFAULT_PORT))
+                    ir_port = settings.get("ir_light_port") if settings.get("ir_enabled") else None
+                    self.engine.send_beacon_once(
+                        display_name,
+                        mac,
+                        my_ip,
+                        net.get("port", DEFAULT_PORT),
+                        ir_port=ir_port,
+                    )
                 except Exception as e:
                     print(f"Beacon sender error: {e}")
                 time.sleep(BEACON_INTERVAL)
@@ -559,6 +683,7 @@ class Bridge:
                         "name": p.get("name", "Unknown"),
                         "mac": p.get("mac", mac),
                         "port": p.get("port", DEFAULT_PORT),
+                        "ir_port": p.get("ir_port", 0),
                         "last_seen": last,
                         "online": online,
                     }

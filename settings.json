@@ -36,5 +36,9 @@
     "alerts_pinned": true,
     "rooms": [],
     "theme": "dark",
-    "muted": true
+    "muted": true,
+    "ir_enabled": false,
+    "ir_on_ping_script": "",
+    "ir_on_light_script": "",
+    "ir_light_port": 5008
 }

@@ -24,19 +24,23 @@ def start_logic():
         api.start_discovery()
     except Exception:
         pass
+    try:
+        api.ensure_light_listener_running()
+    except Exception:
+        pass
 
     # Helper to create the floating always-on-top alerts window (initially hidden)
     def create_alerts_window():
         return webview.create_window(
-            "RoomPing Pro Alerts",
+            "RoomPing Pro Screen Flash",
             _ALERT_INDEX,
             js_api=api,
-            width=320,
-            height=120,
-            resizable=True,
+            width=1280,
+            height=720,
+            resizable=False,
             on_top=True,
             hidden=True,
-            min_size=(160, 60),
+            frameless=True,
         )
 
     alerts_window = create_alerts_window()
@@ -82,11 +86,20 @@ def start_logic():
         try:
             if api.is_alerts_pinned():
                 alerts_window.show()
+<<<<<<< HEAD
                 alerts_window.evaluate_js(f"showPing({safe_ip})")
                 # Failsafe: explicitly return pill to waiting state after a short delay.
                 alerts_window.evaluate_js(
                     "setTimeout(function(){ if(window.resetToWaiting){ window.resetToWaiting(); } }, 4500);"
                 )
+=======
+                alerts_window.evaluate_js("showPing()")
+        except Exception:
+            pass
+        # Optional IR integration: when enabled, run the configured on-ping command.
+        try:
+            api.run_ir_on_ping(sender_ip)
+>>>>>>> Experimental
         except Exception:
             pass
 
@@ -114,6 +127,9 @@ def start_logic():
                 "onIncomingMessage(" + safe(peer_key) + "," + safe(sender_name) + "," + safe(sender_mac) + ","
                 + safe(text) + "," + safe(room_id) + "," + safe(room_name) + ")"
             )
+            if api.is_alerts_pinned() and not api.is_muted():
+                alerts_window.show()
+                alerts_window.evaluate_js("showMessageFlash()")
         except Exception:
             pass
 

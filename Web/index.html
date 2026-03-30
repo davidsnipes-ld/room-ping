@@ -172,6 +172,23 @@
                     </div>
                     <p class="setting-hint">Pick a color scheme for the app. This only affects your device.</p>
                 </div>
+                <div class="setting-item setting-item-block">
+                    <label>IR / Lights</label>
+                    <div class="settings-grid">
+                        <label class="setting-inline">
+                            <input type="checkbox" id="ir-enabled-toggle">
+                            Enable IR integration
+                        </label>
+                        <label for="ir-on-ping-script">On ping received command</label>
+                        <input type="text" id="ir-on-ping-script" placeholder='e.g. irsend SEND_ONCE ceiling KEY_FLASH'>
+                        <label for="ir-on-light-script">On light trigger command</label>
+                        <input type="text" id="ir-on-light-script" placeholder='e.g. python /path/to/light_trigger.py'>
+                        <label for="ir-light-port">Light trigger port</label>
+                        <input type="number" id="ir-light-port" min="1024" max="65535" step="1" placeholder="5008">
+                        <button type="button" class="save-btn" id="btn-ir-test-script">Test light script</button>
+                    </div>
+                    <p class="setting-hint">RoomPing runs your configured command without shell expansion. Allow UDP 5008 in firewall for remote light triggers.</p>
+                </div>
                 <div class="firewall-help">
                     <strong>Pings not working?</strong> Allow this app in your firewall for <strong>Private</strong> networks (UDP ports 5005, 5006, 5007). Windows: Security → Firewall → Allow an app. If you clicked Block by mistake, add RoomPing Pro there and check Private.
                 </div>

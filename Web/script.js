@@ -187,6 +187,7 @@ function attachClickHandlers() {
     byId('btn-modal-add', saveFriend);
     byId('btn-settings-close', closeSettings);
     byId('btn-check-updates', checkForUpdates);
+    byId('btn-ir-test-script', testIrScriptFromSettings);
     byId('btn-test-ping', testMyPing);
     byId('btn-copy-mac', copyMyMac);
     byId('btn-dismiss-firewall', () => {
@@ -445,6 +446,44 @@ async function pingFriend(mac, name) {
     }
 }
 
+async function triggerFriendLight(user) {
+    if (!window.pywebview?.api?.trigger_remote_light) {
+        showToast('Light trigger is not available in this build.', 'error');
+        return;
+    }
+    let ip = (user.ip || '').trim();
+    if (!ip && window.pywebview?.api?.get_reachability_and_ip) {
+        try {
+            const result = await pywebview.api.get_reachability_and_ip(user.mac, user.name, null);
+            if (result && result.ip) {
+                ip = result.ip;
+                user.ip = result.ip;
+            }
+        } catch (e) {}
+    }
+    if (!ip) {
+        const msg = 'No IP for this friend. Refresh status first.';
+        showToast(msg, 'error');
+        appendDebugLog(user.name, msg, 'fail');
+        return;
+    }
+    try {
+        const result = await pywebview.api.trigger_remote_light(ip, '');
+        if (result && result.status === 'success') {
+            showToast('Light trigger sent to ' + user.name + '.', 'success');
+            appendDebugLog(user.name, result.message || ('Light trigger sent to ' + ip + '.'), 'ok');
+        } else {
+            const msg = (result && result.message) || ('Light trigger failed for ' + ip + '.');
+            showToast(msg, 'error');
+            appendDebugLog(user.name, msg, 'fail');
+        }
+    } catch (e) {
+        const msg = 'Light trigger failed: ' + (e.message || 'error');
+        showToast(msg, 'error');
+        appendDebugLog(user.name, msg, 'fail');
+    }
+}
+
 async function saveFriend() {
     const name = document.getElementById('new-name').value.trim();
     const mac = document.getElementById('new-mac').value.trim();
@@ -554,7 +593,12 @@ async function loadFriends() {
             card.title = `${user.name} — click to ping, envelope to message`;
         }
         card.addEventListener('click', (e) => {
-            if (e.target.closest('.delete-btn') || e.target.closest('.ip-btn') || e.target.closest('.chat-btn')) return;
+            if (
+                e.target.closest('.delete-btn') ||
+                e.target.closest('.ip-btn') ||
+                e.target.closest('.chat-btn') ||
+                e.target.closest('.light-btn')
+            ) return;
             pingFriend(user.mac, user.name);
         });
         const storedIp = user.ip ? ('IP: ' + user.ip) : '';
@@ -572,6 +616,7 @@ async function loadFriends() {
     <div class="card-actions">
         <span class="unread-dot" style="display:none;" title="New messages"></span>
         <button class="chat-btn" type="button" title="Open chat">💬</button>
+        <button class="light-btn" type="button" title="Trigger remote light">💡</button>
         <button class="ping-btn" type="button">PING</button>
         <button class="ip-btn" type="button" title="View or edit the IP we have stored for this MAC">IP</button>
         <button class="conn-test-btn" type="button" title="Test connection">TEST</button>
@@ -606,6 +651,13 @@ async function loadFriends() {
             chatBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openChatModal(dmPeerKey(user.mac), user.name, { friendMac: user.mac });
+            });
+        }
+        const lightBtn = card.querySelector('.light-btn');
+        if (lightBtn) {
+            lightBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                triggerFriendLight(user);
             });
         }
         const testBtn = card.querySelector('.conn-test-btn');
@@ -913,6 +965,7 @@ function openSettings() {
 }
 async function closeSettings() {
     await saveDisplayNameFromModal();
+    await saveIrSettingsFromModal();
     document.getElementById('settings-modal').style.display = 'none';
 }
 
@@ -927,7 +980,60 @@ async function loadSettingsIntoModal() {
         if (typeof settings.muted === 'boolean') {
             applyMuteUI(settings.muted);
         }
+        loadIrSettingsFromSettings(settings);
     } catch (e) {}
+}
+
+function loadIrSettingsFromSettings(settings) {
+    const enabled = document.getElementById('ir-enabled-toggle');
+    const onPing = document.getElementById('ir-on-ping-script');
+    const onLight = document.getElementById('ir-on-light-script');
+    const port = document.getElementById('ir-light-port');
+    if (enabled) enabled.checked = !!settings.ir_enabled;
+    if (onPing) onPing.value = settings.ir_on_ping_script || '';
+    if (onLight) onLight.value = settings.ir_on_light_script || '';
+    if (port) port.value = settings.ir_light_port || 5008;
+}
+
+async function saveIrSettingsFromModal() {
+    if (!window.pywebview?.api?.set_ir_settings) return;
+    const enabled = document.getElementById('ir-enabled-toggle');
+    const onPing = document.getElementById('ir-on-ping-script');
+    const onLight = document.getElementById('ir-on-light-script');
+    const port = document.getElementById('ir-light-port');
+    const payload = {
+        ir_enabled: !!(enabled && enabled.checked),
+        ir_on_ping_script: (onPing && onPing.value ? onPing.value : '').trim(),
+        ir_on_light_script: (onLight && onLight.value ? onLight.value : '').trim(),
+        ir_light_port: (port && port.value ? parseInt(port.value, 10) : 5008),
+    };
+    try {
+        await pywebview.api.set_ir_settings(payload);
+    } catch (e) {
+        appendDebugLog('IR', 'Could not save IR settings: ' + (e.message || 'error'), 'fail');
+    }
+}
+
+async function testIrScriptFromSettings() {
+    if (!window.pywebview?.api?.test_ir_light_script) {
+        showToast('IR testing is not available in this build.', 'error');
+        return;
+    }
+    await saveIrSettingsFromModal();
+    try {
+        const result = await pywebview.api.test_ir_light_script();
+        if (result && result.status === 'success') {
+            showToast('IR light test started.', 'success');
+            appendDebugLog('IR', result.message || 'IR light test started.', 'ok');
+        } else {
+            const msg = (result && result.message) || 'IR light test failed.';
+            showToast(msg, 'error');
+            appendDebugLog('IR', msg, 'fail');
+        }
+    } catch (e) {
+        showToast('IR light test failed.', 'error');
+        appendDebugLog('IR', 'IR light test failed: ' + (e.message || 'error'), 'fail');
+    }
 }
 
 async function saveDisplayNameFromModal() {
