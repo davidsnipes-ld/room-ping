@@ -135,6 +135,8 @@
             }
         });
 
+        let resetTimer = null;
+
         function resetPingPill() {
             const box = document.getElementById('ping-box');
             const main = document.getElementById('ping-main');
@@ -165,6 +167,12 @@
             // force reflow so the animation can restart
             void label.offsetWidth;
             label.classList.add('flash');
+
+            if (resetTimer) {
+                clearTimeout(resetTimer);
+            }
+            // Return to waiting state on the same pill after the alert is shown.
+            resetTimer = setTimeout(resetPingPill, 4500);
         };
     </script>
 </body>
