@@ -2,156 +2,58 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>RoomPing Pro Alerts</title>
+    <title>RoomPing Pro Screen Flash</title>
     <style>
-        *, *::before, *::after {
-            box-sizing: border-box;
-        }
-        body {
-            margin: 0;
-            padding: 8px 10px;
-            background: #121212;
-            color: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            font-size: 14px;
-        }
-        .title {
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: #888;
-            margin: 0 0 6px 0;
-        }
-        .ping-box {
+        html, body {
             width: 100%;
-            max-width: 100%;
-            border-radius: 10px;
-            padding: 8px 10px 10px 10px;
-            background: #1f1f1f;
-            border: 1px solid #333;
-            position: relative;
-        }
-        .ping-label {
-            display: inline-block;
-            font-size: 11px;
-            color: #fff;
-            background: #ff4b2b;
-            padding: 2px 10px;
-            border-radius: 999px;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-        }
-        .ping-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 6px;
-        }
-        .ping-close {
-            background: none;
-            border: none;
-            color: #777;
-            cursor: pointer;
-            font-size: 13px;
+            height: 100%;
+            margin: 0;
             padding: 0;
-            line-height: 1;
+            background: transparent;
+            overflow: hidden;
         }
-        .ping-close:hover {
-            color: #fff;
+        .screen-flash {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
         }
-        .ping-main {
-            font-size: 15px;
-            font-weight: 600;
-            margin-bottom: 2px;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
+        .screen-flash::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            box-sizing: border-box;
+            border: 96px solid rgba(255, 255, 255, 0);
+            opacity: 0;
         }
-        .ping-meta {
-            font-size: 12px;
-            color: #aaa;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
+        .screen-flash.active::before {
+            animation: border-flash 0.35s ease-in-out 4;
         }
-        .hint {
-            margin-top: 8px;
-            font-size: 11px;
-            color: #666;
-        }
-        @keyframes flash-label {
-            0%, 100% {
-                background: #ff4b2b;
-                color: #fff;
-            }
-            50% {
-                background: #ffd54f;
-                color: #000;
-            }
-        }
-        .ping-label.flash {
-            animation: flash-label 0.8s ease-in-out 3;
-        }
-
-        /* Compact mode: very narrow window – show only the PING RECEIVED banner for a super-minimal pill */
-        @media (max-width: 220px) {
-            .title,
-            .ping-main,
-            .ping-meta,
-            .hint {
-                display: none;
-            }
-            .ping-box {
-                padding: 6px 8px;
-            }
+        @keyframes border-flash {
+            0%, 100% { border-color: rgba(255, 255, 255, 0); opacity: 0; }
+            50% { border-color: rgba(255, 255, 255, 0.95); opacity: 1; }
         }
     </style>
 </head>
 <body>
-    <div class="title">
-        <span>RoomPing Pro Alerts</span>
-    </div>
-    <div class="ping-box" id="ping-box">
-        <div class="ping-header">
-            <div class="ping-label">Waiting for pings…</div>
-            <button id="close-btn" class="ping-close">×</button>
-        </div>
-        <div class="ping-main" id="ping-main">No pings yet</div>
-        <div class="ping-meta" id="ping-meta">Leave this window open and on top to see alerts over other apps.</div>
-    </div>
-    <div class="hint">Resize and move this window wherever you like. It will light up when someone pings you.</div>
+    <div class="screen-flash" id="screen-flash"></div>
 
     <script>
-        function escapeHtml(str) {
-            const div = document.createElement('div');
-            div.textContent = String(str);
-            return div.innerHTML;
+        let hideTimer = null;
+        function flashBorder() {
+            const overlay = document.getElementById('screen-flash');
+            overlay.classList.remove('active');
+            void overlay.offsetWidth;
+            overlay.classList.add('active');
+            if (hideTimer) clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => {
+                overlay.classList.remove('active');
+                if (window.pywebview?.api?.set_alerts_visible) {
+                    window.pywebview.api.set_alerts_visible(false);
+                }
+            }, 1800);
         }
-
-        document.getElementById('close-btn').addEventListener('click', function () {
-            if (window.pywebview && window.pywebview.api && window.pywebview.api.set_alerts_visible) {
-                window.pywebview.api.set_alerts_visible(false);
-            } else {
-                window.close();
-            }
-        });
-
-        window.showPing = function (senderIp) {
-            const box = document.getElementById('ping-box');
-            const main = document.getElementById('ping-main');
-            const meta = document.getElementById('ping-meta');
-            const label = box.querySelector('.ping-label');
-            const time = new Date().toLocaleTimeString();
-            label.textContent = 'PING received';
-            main.innerHTML = 'From: ' + escapeHtml(senderIp || 'Unknown');
-            meta.innerHTML = 'Time: ' + escapeHtml(time);
-            box.style.borderColor = '#ff4b2b';
-            box.style.boxShadow = '0 0 18px rgba(255,75,43,0.6)';
-            // flash the banner label 3 times
-            label.classList.remove('flash');
-            // force reflow so the animation can restart
-            void label.offsetWidth;
-            label.classList.add('flash');
-        };
+        window.showPing = flashBorder;
+        window.showMessageFlash = flashBorder;
     </script>
 </body>
 </html>
