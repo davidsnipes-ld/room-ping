@@ -149,6 +149,7 @@
             main.innerHTML = 'No pings yet';
             meta.innerHTML = 'Leave this window open and on top to see alerts over other apps.';
         }
+        window.resetToWaiting = resetPingPill;
 
         window.showPing = function (senderIp) {
             resetPingPill();

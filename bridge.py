@@ -120,6 +120,7 @@ class Bridge:
         if os.path.exists(self.settings_file):
             with open(self.settings_file, "r") as f:
                 s = json.load(f)
+                original_users = json.dumps(s.get("users", []), sort_keys=True)
                 s.setdefault("users", [])
                 s.setdefault("display_name", "")
                 s.setdefault("alerts_pinned", False)
@@ -127,6 +128,10 @@ class Bridge:
                 s.setdefault("theme", "dark")
                 s.setdefault("muted", False)
                 self._dedupe_and_clean_users(s)
+                # Persist cleanup so duplicates/self-entries do not come back next launch.
+                if json.dumps(s.get("users", []), sort_keys=True) != original_users:
+                    with open(self.settings_file, "w") as wf:
+                        json.dump(s, wf, indent=4)
                 return s
         return {
             "users": [],
@@ -508,6 +513,9 @@ class Bridge:
         """Start beacon sender and listener threads so we discover other RoomPing Pro users and advertise ourselves."""
 
         def on_beacon(peer):
+            # Ignore our own beacon as early as possible.
+            if self._mac_norm(peer.get("mac")) == self.engine.get_my_mac().lower().replace("-", ":"):
+                return
             with self._discovery_lock:
                 self._discovered_peers[peer["mac"]] = {**peer, "last_seen": time.time()}
 

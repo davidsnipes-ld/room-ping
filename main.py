@@ -83,6 +83,10 @@ def start_logic():
             if api.is_alerts_pinned():
                 alerts_window.show()
                 alerts_window.evaluate_js(f"showPing({safe_ip})")
+                # Failsafe: explicitly return pill to waiting state after a short delay.
+                alerts_window.evaluate_js(
+                    "setTimeout(function(){ if(window.resetToWaiting){ window.resetToWaiting(); } }, 4500);"
+                )
         except Exception:
             pass
 
